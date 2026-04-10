@@ -1,0 +1,71 @@
+# ----------------------------
+# OS / Editor junk
+# ----------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+*.swp
+*.swo
+*.orig
+*.tmp
+.~*
+*.bak
+
+# IDE & project settings
+.vscode/
+.idea/
+*.code-workspace
+
+# ----------------------------
+# Node / JS toolchains
+# ----------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+package-lock.json.LOCK
+
+# Build outputs
+dist/
+build/
+public/build/
+.eslintcache
+.stylelintcache
+.cache/
+.parcel-cache/
+.next/
+.turbo/
+
+# ----------------------------
+# PHP / Composer
+# ----------------------------
+# vendor/ is committed so the plugin works after clone without running composer.
+
+# QA / test artifacts
+.phpunit.result.cache
+coverage/
+.nyc_output/
+.php-cs-fixer.cache
+
+# ----------------------------
+# Env & secrets
+# ----------------------------
+.env
+.env.*
+!.env.example
+
+# ----------------------------
+# WordPress plugin
+# ----------------------------
+*.zip
+*.tar
+*.tar.gz
+
+scripts/local/*
+!.keep
+
+*.log
+*.cache

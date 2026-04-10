@@ -1,0 +1,122 @@
+<?php
+/**
+ * Streaming Provider Interface
+ * All streaming providers must implement this interface
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+interface LEM_Streaming_Provider_Interface {
+    
+    /**
+     * Get provider display name
+     */
+    public function get_name();
+    
+    /**
+     * Get provider ID/slug
+     */
+    public function get_id();
+    
+    /**
+     * Check if provider is configured
+     */
+    public function is_configured();
+    
+    /**
+     * Get credentials for API calls
+     */
+    public function get_credentials();
+    
+    /**
+     * Generate playback token/JWT for viewer
+     */
+    public function generate_playback_token($email, $event_id, $payment_id = null, $is_refresh = false);
+    
+    /**
+     * Get RTMP stream information (if supported)
+     */
+    public function get_rtmp_info($stream_id = null);
+    
+    /**
+     * Create a new live stream
+     */
+    public function create_stream($params);
+    
+    /**
+     * Update an existing stream
+     */
+    public function update_stream($stream_id, $params);
+    
+    /**
+     * Delete a stream
+     */
+    public function delete_stream($stream_id);
+    
+    /**
+     * Get stream details
+     */
+    public function get_stream_details($stream_id);
+    
+    /**
+     * List all streams
+     */
+    public function list_streams($limit = 100);
+    
+    /**
+     * Get stream status (active/idle/error)
+     */
+    public function get_stream_status($stream_id = null);
+    
+    /**
+     * Create simulcast target (if supported)
+     */
+    public function create_simulcast_target($stream_id, $url);
+    
+    /**
+     * List simulcast targets
+     */
+    public function list_simulcast_targets($stream_id = null);
+    
+    /**
+     * Delete simulcast target
+     */
+    public function delete_simulcast_target($stream_id, $target_id);
+    
+    /**
+     * Get WebRTC publish URL (if supported)
+     */
+    public function get_webrtc_publish_url($stream_id = null);
+    
+    /**
+     * Get WebRTC playback URL
+     */
+    public function get_webrtc_playback_url($stream_id = null);
+    
+    /**
+     * Get playback URL for player component
+     */
+    public function get_playback_url($stream_id = null);
+    
+    /**
+     * Get player component HTML/attributes
+     */
+    public function get_player_component($playback_id, $token = null, $options = array());
+    
+    /**
+     * Handle webhook events
+     */
+    public function handle_webhook($payload, $signature = null);
+    
+    /**
+     * Get settings fields for admin
+     */
+    public function get_settings_fields();
+    
+    /**
+     * Validate settings
+     */
+    public function validate_settings($settings);
+}

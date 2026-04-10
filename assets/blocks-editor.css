@@ -1,0 +1,196 @@
+/**
+ * Live Event Manager - Block Editor Styles
+ */
+
+.lem-block-editor {
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #e2e4e7;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+
+.lem-block-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e2e4e7;
+}
+
+.lem-block-header h3 {
+    margin: 0 0 8px 0;
+    color: #1e1e1e;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.lem-block-header p {
+    margin: 0;
+    color: #757575;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.lem-block-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.lem-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.lem-control-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1e1e1e;
+    margin-bottom: 4px;
+}
+
+.lem-control-group select,
+.lem-control-group input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    font-size: 14px;
+    background: #fff;
+    color: #1e1e1e;
+    transition: border-color 0.2s ease;
+}
+
+.lem-control-group select:focus,
+.lem-control-group input[type="text"]:focus {
+    outline: none;
+    border-color: #007cba;
+    box-shadow: 0 0 0 1px #007cba;
+}
+
+.lem-control-group input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.lem-block-preview {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e2e4e7;
+}
+
+.lem-block-preview h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e1e1e;
+}
+
+.lem-preview-container {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 15px;
+    text-align: center;
+}
+
+.lem-preview-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.lem-preview-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 150px;
+}
+
+.lem-preview-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.lem-preview-container p {
+    margin: 0;
+    color: #757575;
+    font-size: 12px;
+}
+
+/* Block-specific styles */
+.lem-event-ticket-editor {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+/* Preview styles */
+.lem-preview-event-info {
+    text-align: left;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.lem-preview-event-info h5 {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1e1e1e;
+}
+
+.lem-preview-event-info p {
+    margin: 0 0 5px 0;
+    font-size: 12px;
+    color: #757575;
+}
+
+.lem-preview-price {
+    font-size: 12px;
+    font-weight: 600;
+    color: #28a745;
+}
+
+.lem-preview-email-input {
+    margin-bottom: 15px;
+}
+
+.lem-preview-email-input input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #f8f9fa;
+    color: #757575;
+}
+
+.lem-preview-button-free {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.lem-preview-button-paid {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .lem-block-editor {
+        padding: 15px;
+    }
+    
+    .lem-block-controls {
+        gap: 12px;
+    }
+    
+    .lem-preview-button {
+        padding: 10px 20px;
+        font-size: 13px;
+    }
+} 

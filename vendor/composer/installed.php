@@ -1,0 +1,41 @@
+<?php return array(
+    'root' => array(
+        'name' => 'live-event-manager/wordpress-plugin',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '59df0487fdc7b146aeba665069af19a7b6d7a0ec',
+        'type' => 'wordpress-plugin',
+        'install_path' => __DIR__ . '/../../',
+        'aliases' => array(),
+        'dev' => true,
+    ),
+    'versions' => array(
+        'firebase/php-jwt' => array(
+            'pretty_version' => 'v6.11.1',
+            'version' => '6.11.1.0',
+            'reference' => 'd1e91ecf8c598d073d0995afa8cd5c75c6e19e66',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../firebase/php-jwt',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'live-event-manager/wordpress-plugin' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '59df0487fdc7b146aeba665069af19a7b6d7a0ec',
+            'type' => 'wordpress-plugin',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'stripe/stripe-php' => array(
+            'pretty_version' => 'v10.21.0',
+            'version' => '10.21.0.0',
+            'reference' => 'b4ab319731958077227fad1874a3671458c5d593',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../stripe/stripe-php',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+    ),
+);
