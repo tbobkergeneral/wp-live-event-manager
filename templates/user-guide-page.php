@@ -39,10 +39,19 @@ The Live Event Manager is a comprehensive WordPress plugin for secure, scalable 
 
 // Convert markdown to HTML (basic conversion)
 function convert_markdown_to_html($markdown) {
-    // Headers
-    $markdown = preg_replace('/^### (.*$)/m', '<h3>$1</h3>', $markdown);
-    $markdown = preg_replace('/^## (.*$)/m', '<h2>$1</h2>', $markdown);
-    $markdown = preg_replace('/^# (.*$)/m', '<h1>$1</h1>', $markdown);
+    // Headers (ids for in-page navigation; plain text only in heading lines)
+    $markdown = preg_replace_callback('/^### (.*)$/m', function ($m) {
+        $t = trim($m[1]);
+        return '<h3 id="' . esc_attr(sanitize_title($t)) . '">' . esc_html($t) . '</h3>';
+    }, $markdown);
+    $markdown = preg_replace_callback('/^## (.*)$/m', function ($m) {
+        $t = trim($m[1]);
+        return '<h2 id="' . esc_attr(sanitize_title($t)) . '">' . esc_html($t) . '</h2>';
+    }, $markdown);
+    $markdown = preg_replace_callback('/^# (.*)$/m', function ($m) {
+        $t = trim($m[1]);
+        return '<h1 id="' . esc_attr(sanitize_title($t)) . '">' . esc_html($t) . '</h1>';
+    }, $markdown);
     
     // Bold
     $markdown = preg_replace('/\*\*(.*?)\*\*/', '<strong>$1</strong>', $markdown);
@@ -61,8 +70,15 @@ function convert_markdown_to_html($markdown) {
     // Wrap lists in ul/ol
     $markdown = preg_replace('/(<li>.*<\/li>)/s', '<ul>$1</ul>', $markdown);
     
-    // Links
-    $markdown = preg_replace('/\[([^\]]+)\]\(([^)]+)\)/', '<a href="$2">$1</a>', $markdown);
+    // Links (only allow http, https, mailto protocols)
+    $markdown = preg_replace_callback('/\[([^\]]+)\]\(([^)]+)\)/', function($matches) {
+        $text = $matches[1];
+        $url  = trim($matches[2]);
+        if (preg_match('#^(https?://|mailto:)#i', $url)) {
+            return '<a href="' . esc_url($url) . '">' . $text . '</a>';
+        }
+        return $text; // Strip the link if protocol is not allowed
+    }, $markdown);
     
     // Line breaks
     $markdown = str_replace("\n\n", '</p><p>', $markdown);
@@ -86,15 +102,17 @@ $html_content = convert_markdown_to_html($markdown_content);
                 <h3>Quick Navigation</h3>
                 <ul>
                     <li><a href="#overview">Overview</a></li>
-                    <li><a href="#quick-start">Quick Start</a></li>
-                    <li><a href="#complete-workflow">Complete Workflow</a></li>
-                    <li><a href="#stream-providers">Stream Providers</a></li>
-                    <li><a href="#creating-streams">Creating Streams</a></li>
-                    <li><a href="#creating-events">Creating Events</a></li>
-                    <li><a href="#publishing-streams">Publishing Streams</a></li>
-                    <li><a href="#admin-pages">Admin Pages</a></li>
-                    <li><a href="#viewer-experience">Viewer Experience</a></li>
-                    <li><a href="#provider-features">Provider Features</a></li>
+                    <li><a href="#quick-start">Quick start</a></li>
+                    <li><a href="#streaming-providers">Streaming providers</a></li>
+                    <li><a href="#live-streams">Live Streams</a></li>
+                    <li><a href="#events">Events</a></li>
+                    <li><a href="#access-tokens-and-revocations">Access &amp; revocations</a></li>
+                    <li><a href="#payments">Payments</a></li>
+                    <li><a href="#template-packs">Template packs</a></li>
+                    <li><a href="#viewer-experience">Viewer experience</a></li>
+                    <li><a href="#optional-ably-live-chat">Ably chat</a></li>
+                    <li><a href="#rest-api">REST API</a></li>
+                    <li><a href="#admin-pages-reference">Admin pages</a></li>
                     <li><a href="#troubleshooting">Troubleshooting</a></li>
                 </ul>
             </div>
@@ -110,7 +128,7 @@ $html_content = convert_markdown_to_html($markdown_content);
                     <span class="lem-status-value lem-status-success">✅ Ready</span>
                 </div>
                 <div class="lem-status-item">
-                    <span class="lem-status-label">Redis:</span>
+                    <span class="lem-status-label">Upstash (cache):</span>
                     <?php 
                     // Get plugin instance safely
                     $plugin_instance = null;
@@ -164,10 +182,10 @@ $html_content = convert_markdown_to_html($markdown_content);
                     Create New Event
                 </a>
                 <a href="<?php echo admin_url('edit.php?post_type=lem_event&page=live-event-manager-stream-management'); ?>" class="button">
-                    Stream Management
+                    Live Streams
                 </a>
                 <a href="<?php echo admin_url('edit.php?post_type=lem_event&page=live-event-manager-stream-vendors'); ?>" class="button">
-                    Stream Vendors
+                    Vendors
                 </a>
                 <a href="<?php echo admin_url('edit.php?post_type=lem_event&page=live-event-manager-settings'); ?>" class="button">
                     Settings
@@ -179,7 +197,7 @@ $html_content = convert_markdown_to_html($markdown_content);
         </div>
         
         <div class="lem-user-guide-content">
-            <?php echo $html_content; ?>
+            <?php echo wp_kses_post($html_content); ?>
         </div>
     </div>
 </div>

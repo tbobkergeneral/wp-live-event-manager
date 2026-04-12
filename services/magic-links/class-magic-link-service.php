@@ -46,8 +46,37 @@ class LEM_Magic_Link_Service {
         $message .= "Need a new link later? Visit: " . $resend_url . "\n\n";
         $message .= "Best regards,\nLive Event Team";
 
-        $headers = array('Content-Type: text/plain; charset=UTF-8');
-        return wp_mail($email, $subject, $message, $headers);
+        // Use the WordPress admin email as the From address.
+        // SendLayer (and most transactional providers) require the From domain
+        // to be verified. WordPress's default (wordpress@domain) is often
+        // different from the verified sender — the admin email is more reliable.
+        $from_email = get_option('admin_email');
+        $from_name  = get_bloginfo('name') ?: 'Live Events';
+        $headers = array(
+            'Content-Type: text/plain; charset=UTF-8',
+            'From: ' . $from_name . ' <' . $from_email . '>',
+            'Reply-To: ' . $from_email,
+        );
+
+        // Clear any stale error before sending so we capture a fresh one
+        delete_transient('lem_last_mail_error');
+
+        $sent = wp_mail($email, $subject, $message, $headers);
+
+        if (!$sent) {
+            $error = get_transient('lem_last_mail_error') ?: 'wp_mail() returned false — check your SMTP configuration in the plugin settings.';
+            $this->plugin->debug_log('Magic link email failed', array(
+                'to'    => $email,
+                'error' => $error,
+            ));
+            return array('sent' => false, 'error' => $error);
+        }
+
+        return array(
+            'sent'        => true,
+            'magic_link'  => $magic_link,
+            'magic_token' => $magic_token,
+        );
     }
 
     private function extract_unique_code($jwt, $session_id) {
@@ -128,26 +157,19 @@ class LEM_Magic_Link_Service {
         }
 
         if (time() > $magic_data['expires_at']) {
-            $this->plugin->debug_log('Magic token validation failed - Token expired', array(
-                'expires_at' => $magic_data['expires_at'],
-                'current_time' => time(),
-                'difference' => time() - $magic_data['expires_at']
-            ));
             return array('valid' => false, 'error' => 'Magic token expired');
         }
 
-        $existing_session = $this->get_active_session_for_email_event($magic_data['email'], $magic_data['event_id']);
-        $this->plugin->debug_log('Session check', array(
-            'existing_session' => $existing_session,
-            'magic_session_id' => $magic_data['session_id'] ?? 'none'
-        ));
+        // Atomic consume: SETNX on a lock key so only one request wins.
+        $lock_key   = 'magic_lock:' . $token;
+        $lock_taken = $redis->setnx($lock_key, '1');
+        if (!$lock_taken) {
+            return array('valid' => false, 'error' => 'Magic token already used');
+        }
+        $redis->setex($lock_key, 300, '1');
 
-        if ($existing_session && $existing_session !== ($magic_data['session_id'] ?? null)) {
-            $this->plugin->debug_log('Revoking different existing session', array(
-                'existing_session' => $existing_session,
-                'magic_session' => $magic_data['session_id'] ?? 'none'
-            ));
-            $this->plugin->revoke_session($existing_session);
+        if (class_exists('LEM_Access') && LEM_Access::is_email_revoked_for_event($magic_data['email'], $magic_data['event_id'])) {
+            return array('valid' => false, 'error' => 'Access for this email has been revoked for this event.');
         }
 
         $jti = $this->resolve_jti_for_magic_token($magic_data, $redis);
@@ -156,12 +178,14 @@ class LEM_Magic_Link_Service {
             return array('valid' => false, 'error' => 'No valid JWT found for this access');
         }
 
-        $session_id = $this->plugin->create_session($jti, $magic_data['event_id'], $magic_data['email']);
+        $session_id = $this->plugin->create_session($magic_data['event_id'], $magic_data['email']);
 
         $magic_data['consumed'] = true;
         $magic_data['consumed_at'] = time();
         $magic_data['session_id'] = $session_id;
         $redis->setex($key, 24 * 60 * 60, json_encode($magic_data));
+
+        $this->plugin->ensure_playback_blob($magic_data['email'], $magic_data['event_id']);
 
         return array(
             'valid' => true,
@@ -227,6 +251,10 @@ class LEM_Magic_Link_Service {
     }
 
     public function validate_email_and_send_link($email, $event_id) {
+        if (class_exists('LEM_Access') && LEM_Access::is_email_revoked_for_event($email, $event_id)) {
+            return array('valid' => false, 'error' => 'Access for this email has been revoked for this event.');
+        }
+
         if (!$this->has_valid_ticket($email, $event_id)) {
             return array('valid' => false, 'error' => 'No valid ticket found for this email and event');
         }
@@ -244,12 +272,15 @@ class LEM_Magic_Link_Service {
             return array('valid' => false, 'error' => 'No valid JWT record found');
         }
 
-        $new_session_id = $this->plugin->create_session($jwt_record->jti, $event_id, $email);
+        $new_session_id = $this->plugin->create_session($event_id, $email);
         $result = $this->send_magic_link_email($email, $jwt_record->jwt_token, $event_id, $new_session_id);
 
-        return $result
-            ? array('valid' => true, 'message' => 'New access link sent to your email')
-            : array('valid' => false, 'error' => 'Failed to send access link');
+        $mail_ok = is_array($result) && !empty($result['sent']);
+        if ($mail_ok) {
+            return array('valid' => true, 'message' => 'New access link sent to your email');
+        }
+        $err = (is_array($result) && !empty($result['error'])) ? $result['error'] : 'Failed to send access link';
+        return array('valid' => false, 'error' => $err);
     }
 
     public function has_valid_ticket($email, $event_id) {
@@ -313,11 +344,12 @@ class LEM_Magic_Link_Service {
     public function get_active_session_for_email_event($email, $event_id) {
         $redis = $this->plugin->get_redis_connection();
         if (!$redis) {
-            return null;
+            return [];
         }
 
         $email_hash = hash('sha256', $email);
-        return $redis->get("active_session:{$event_id}:{$email_hash}");
+        $json       = $redis->get("active_sessions:{$event_id}:{$email_hash}");
+        return $json ? (json_decode($json, true) ?: []) : [];
     }
 
     public function get_jwt_for_session($session_id) {

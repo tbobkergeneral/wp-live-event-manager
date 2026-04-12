@@ -1,5 +1,6 @@
+<?php if (!defined('ABSPATH')) exit; ?>
 <div class="wrap">
-    <h1>JWT Manager</h1>
+    <h1>Access Tokens</h1>
     
     <div class="lem-admin-container">
         <div class="lem-section">
@@ -149,14 +150,17 @@
 jQuery(document).ready(function($) {
     var lemJwtCache = [];
 
+    // HTML escape helper
+    function escHtml(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
     // Notification function
     function showNotification(message, type = 'info') {
         // Remove existing notifications
         $('.lem-notification').remove();
-        
+
         var notification = $('<div class="lem-notification ' + type + '">' +
             '<span class="close">&times;</span>' +
-            '<span class="message">' + message + '</span>' +
+            '<span class="message">' + escHtml(message) + '</span>' +
         '</div>');
         
         $('body').append(notification);
@@ -226,10 +230,10 @@ jQuery(document).ready(function($) {
             if (response.success) {
                 displayJWTTokens(response.data);
             } else {
-                $('#lem-jwt-list').html('<div class="notice notice-error"><p><strong>Error loading JWT tokens:</strong> ' + response.data + '</p></div>');
+                $('#lem-jwt-list').html('<div class="notice notice-error"><p><strong>Error loading JWT tokens:</strong> ' + escHtml(response.data) + '</p></div>');
             }
         }).fail(function(xhr, status, error) {
-            $('#lem-jwt-list').html('<div class="notice notice-error"><p><strong>Network Error:</strong> ' + error + '</p><p>Status: ' + status + '</p><p>Response: ' + xhr.responseText + '</p></div>');
+            $('#lem-jwt-list').html('<div class="notice notice-error"><p><strong>Network Error:</strong> ' + escHtml(error) + '</p><p>Status: ' + escHtml(status) + '</p><p>Response: ' + escHtml(xhr.responseText) + '</p></div>');
         });
     }
     
@@ -255,33 +259,33 @@ jQuery(document).ready(function($) {
 
             if (redisAvailable) {
                 if (token.redis.session_id) {
-                    redisSession = '<code>' + token.redis.session_id + '</code>';
+                    redisSession = '<code>' + escHtml(token.redis.session_id) + '</code>';
                 } else {
                     redisSession = '<span style="color:#999;">None</span>';
                 }
 
                 redisDetails = '<button class="button button-small lem-view-redis" data-index="' + index + '">Inspect</button>';
             }
-            
+
             html += '<tr>';
-            html += '<td><code>' + token.jti + '</code></td>';
-            html += '<td>' + token.email + '</td>';
-            html += '<td>' + token.event_id + '</td>';
+            html += '<td><code>' + escHtml(token.jti) + '</code></td>';
+            html += '<td>' + escHtml(token.email) + '</td>';
+            html += '<td>' + escHtml(token.event_id) + '</td>';
             html += '<td>' + redisSession + '</td>';
             html += '<td>' + redisDetails + '</td>';
-            html += '<td>' + token.ip_address + '</td>';
-            html += '<td>' + created + '</td>';
-            html += '<td>' + expires + (isExpired ? ' <span style="color: red;">(Expired)</span>' : '') + '</td>';
+            html += '<td>' + escHtml(token.ip_address) + '</td>';
+            html += '<td>' + escHtml(created) + '</td>';
+            html += '<td>' + escHtml(expires) + (isExpired ? ' <span style="color: red;">(Expired)</span>' : '') + '</td>';
             html += '<td>';
             if (token.jwt_token) {
-                html += '<button class="button button-small lem-view-jwt" data-jwt="' + token.jwt_token + '">View JWT</button>';
+                html += '<button class="button button-small lem-view-jwt" data-jwt="' + escHtml(token.jwt_token) + '">View JWT</button>';
             } else {
                 html += '<span style="color: #999;">Not stored</span>';
             }
             html += '</td>';
             html += '<td>';
             if (!isExpired) {
-                html += '<button class="button button-small lem-revoke-jwt" data-jti="' + token.jti + '">Revoke</button>';
+                html += '<button class="button button-small lem-revoke-jwt" data-jti="' + escHtml(token.jti) + '">Revoke</button>';
             } else {
                 html += '<span style="color: #999;">Expired</span>';
             }

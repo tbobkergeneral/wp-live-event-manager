@@ -46,9 +46,8 @@ class LEM_Mux_Provider implements LEM_Streaming_Provider_Interface {
     }
     
     public function generate_playback_token($email, $event_id, $payment_id = null, $is_refresh = false) {
-        // Use existing generate_jwt() method from plugin
-        if ($this->plugin && method_exists($this->plugin, 'generate_jwt')) {
-            return $this->plugin->generate_jwt($email, $event_id, $payment_id, $is_refresh);
+        if ($this->plugin && method_exists($this->plugin, 'issue_mux_playback_token')) {
+            return $this->plugin->issue_mux_playback_token($email, $event_id, $payment_id, $is_refresh);
         }
         return false;
     }
@@ -290,50 +289,78 @@ class LEM_Mux_Provider implements LEM_Streaming_Provider_Interface {
     
     public function get_settings_fields() {
         return array(
+            // ── JWT signing ─────────────────────────────────────────────────
             'mux_key_id' => array(
-                'label' => 'Mux Signing Key ID',
-                'type' => 'text',
-                'required' => true
+                'label'       => 'Signing Key ID',
+                'type'        => 'text',
+                'required'    => true,
+                'section'     => 'JWT Signing',
+                'description' => 'Found in your Mux Dashboard under <strong>Settings → Signing Keys</strong>. Used as the <code>kid</code> in playback JWTs.',
+                'placeholder' => 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
             ),
             'mux_private_key' => array(
-                'label' => 'Mux Private Key (Base64)',
-                'type' => 'textarea',
-                'required' => true
+                'label'       => 'Private Key (Base64)',
+                'type'        => 'textarea',
+                'required'    => true,
+                'section'     => 'JWT Signing',
+                'description' => 'The Base64-encoded RSA private key from Mux. Paste the full key string (not a PEM file path).',
+                'placeholder' => 'LS0tLS1CRUdJTi...',
             ),
+            // ── API access ──────────────────────────────────────────────────
             'mux_token_id' => array(
-                'label' => 'Mux API Token ID',
-                'type' => 'text',
-                'required' => false
+                'label'       => 'API Token ID',
+                'type'        => 'text',
+                'required'    => true,
+                'section'     => 'API Access',
+                'description' => 'Used to authenticate Mux REST API calls (stream management, restrictions, etc.).',
+                'placeholder' => 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
             ),
             'mux_token_secret' => array(
-                'label' => 'Mux API Token Secret',
-                'type' => 'password',
-                'required' => false
+                'label'       => 'API Token Secret',
+                'type'        => 'password',
+                'required'    => true,
+                'section'     => 'API Access',
+                'description' => 'Paired with the Token ID above. Both are created in <strong>Mux Dashboard → Settings → Access Tokens</strong>.',
             ),
-            'mux_live_stream_id' => array(
-                'label' => 'Default Mux Live Stream ID',
-                'type' => 'text',
-                'required' => false
-            ),
+            // ── Webhooks ────────────────────────────────────────────────────
             'mux_webhook_secret' => array(
-                'label' => 'Mux Webhook Secret',
-                'type' => 'password',
-                'required' => false
-            )
+                'label'       => 'Webhook Secret',
+                'type'        => 'password',
+                'required'    => false,
+                'section'     => 'Webhooks',
+                'description' => 'Optional but recommended. Used to verify the signature on incoming Mux webhook events.',
+            ),
         );
     }
     
     public function validate_settings($settings) {
         $errors = array();
-        
+
         if (empty($settings['mux_key_id'])) {
             $errors[] = 'Mux Signing Key ID is required';
         }
-        
+
         if (empty($settings['mux_private_key'])) {
             $errors[] = 'Mux Private Key is required';
         }
-        
+
+        if (empty($settings['mux_token_id']) || empty($settings['mux_token_secret'])) {
+            $errors[] = 'Mux API Token ID and Secret are required for stream management';
+        }
+
         return empty($errors) ? true : $errors;
+    }
+
+    public function supports_token_refresh() {
+        return false;
+    }
+
+    public function get_extra_tabs() {
+        return array(
+            'restrictions' => array(
+                'label'    => 'Playback Restrictions',
+                'template' => LEM_PLUGIN_DIR . 'templates/restrictions-page.php',
+            ),
+        );
     }
 }

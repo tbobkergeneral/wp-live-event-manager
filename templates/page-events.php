@@ -1,4 +1,5 @@
 <?php
+if (!defined('ABSPATH')) exit;
 /**
  * Template Name: Events (lem_events)
  * Template Post Type: page
@@ -24,7 +25,7 @@ $events_query = new WP_Query([
             <div class="lem-section lem-text-center">
                 <span class="lem-chip">Line-up</span>
                 <h1 class="lem-title">Upcoming & on-demand</h1>
-                <p class="lem-text">Hand-picked sessions from creators, trainers, and coaches we love. Reserve a spot or jump straight in if you’re already verified.</p>
+                <p class="lem-text">Hand-picked sessions from creators, trainers, and coaches we love. Reserve a spot or jump straight in if you're already verified.</p>
             </div>
 
             <?php if ($events_query->have_posts()) : ?>
@@ -114,7 +115,7 @@ $events_query = new WP_Query([
                         </svg>
                     </div>
                     <h2 class="lem-heading">Nothing on the calendar… yet</h2>
-                    <p class="lem-text">New drops land every week. Follow the newsletter and we’ll nudge you first.</p>
+                    <p class="lem-text">New drops land every week. Follow the newsletter and we'll nudge you first.</p>
                 </div>
             <?php endif; ?>
 

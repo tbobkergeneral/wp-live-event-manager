@@ -17,8 +17,12 @@ $success_message = '';
 
 // Handle form submission
 if ($_POST && isset($_POST['lem_device_swap'])) {
-    $email = sanitize_email($_POST['email']);
-    $event_id = sanitize_text_field($_POST['event_id']);
+    if (!isset($_POST['lem_device_swap_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['lem_device_swap_nonce'])), 'lem_device_swap')) {
+        $error_message = 'Security check failed. Please try again.';
+    } else {
+
+    $email = sanitize_email($_POST['email'] ?? '');
+    $event_id = sanitize_text_field($_POST['event_id'] ?? '');
     
     if (empty($email) || empty($event_id)) {
         $error_message = 'Please provide both email and event ID.';
@@ -37,6 +41,7 @@ if ($_POST && isset($_POST['lem_device_swap'])) {
             $error_message = 'Plugin not available. Please contact support.';
         }
     }
+    } // end else (nonce valid)
 }
 
 // Get event details if event_id is provided
@@ -95,6 +100,7 @@ if ($event_id) {
     <?php endif; ?>
 
     <form method="post" class="lem-device-swap-form">
+        <?php wp_nonce_field('lem_device_swap', 'lem_device_swap_nonce'); ?>
         <?php wp_nonce_field('lem_device_swap', 'lem_device_swap_nonce'); ?>
         <input type="hidden" name="lem_device_swap" value="1">
         

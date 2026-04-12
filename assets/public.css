@@ -39,29 +39,49 @@
 
 .lem-ticket-form {
     display: grid;
-    gap: 1rem;
+    gap: 0.85rem;
+}
+
+/* Email input with leading icon */
+.lem-input-icon-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.lem-input-icon {
+    position: absolute;
+    left: 0.85rem;
+    color: var(--lem-color-muted, #9090a8);
+    pointer-events: none;
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
 }
 
 .lem-email-input {
     width: 100%;
-    padding: 0.85rem 1rem;
+    padding: 0.9rem 1rem 0.9rem 2.6rem;
     border-radius: var(--lem-radius-sm, 10px);
-    border: 1px solid var(--lem-color-border, rgba(31, 34, 51, 0.08));
-    background: #f9f9ff;
+    border: 1px solid var(--lem-color-border, rgba(31, 34, 51, 0.12));
+    background: #f7f7ff;
     font-size: 1rem;
+    color: inherit;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-sizing: border-box;
 }
 
 .lem-email-input:focus {
     outline: none;
     border-color: var(--lem-color-primary, #7f5af0);
-    box-shadow: 0 0 0 4px rgba(127, 90, 240, 0.15);
+    box-shadow: 0 0 0 4px rgba(127, 90, 240, 0.14);
     background: #fff;
 }
 
 .lem-email-error {
     color: var(--lem-color-error, #ff6b6b);
     font-size: 0.85rem;
+    margin-top: 0.25rem;
 }
 
 .lem-ticket-button {
@@ -140,34 +160,54 @@
     font-weight: 600;
 }
 
+/* Stripe security badge */
+.lem-stripe-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--lem-color-muted, #8080a0);
+    letter-spacing: 0.01em;
+}
+
+/* Deprecated — kept for backwards compat */
 .lem-payment-methods {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    padding: 0.75rem 0.9rem;
-    border-radius: var(--lem-radius-sm, 10px);
-    background: #f2f3ff;
-    color: var(--lem-color-muted, #6f7383);
     font-size: 0.85rem;
+    color: var(--lem-color-muted, #6f7383);
 }
 
+/* Collapsible "Already purchased?" */
+.lem-resend-form {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.lem-resend-btn {
+    padding: 0.7rem 1.2rem;
+    border-radius: var(--lem-radius-sm, 10px);
+    border: 1px solid var(--lem-color-border, rgba(31, 34, 51, 0.16));
+    background: transparent;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--lem-color-primary, #7f5af0);
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    text-align: center;
+}
+
+.lem-resend-btn:hover {
+    background: rgba(127, 90, 240, 0.08);
+    border-color: var(--lem-color-primary, #7f5af0);
+}
+
+/* Legacy compat */
 .lem-resend-wrapper {
     border-top: 1px solid var(--lem-color-border, rgba(31, 34, 51, 0.08));
     padding-top: 1.25rem;
-}
-
-.lem-resend-toggle {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
-    border-radius: var(--lem-radius-sm, 10px);
-    border: 1px dashed var(--lem-color-border, rgba(31, 34, 51, 0.14));
-    background: #f8f8ff;
-    font-weight: 600;
-    cursor: pointer;
 }
 
 .lem-resend-panel {
@@ -176,11 +216,6 @@
     border-radius: var(--lem-radius-sm, 10px);
     background: #fdfdff;
     border: 1px solid var(--lem-color-border, rgba(31, 34, 51, 0.08));
-}
-
-.lem-resend-form {
-    display: grid;
-    gap: 0.75rem;
 }
 
 .lem-resend-email,
@@ -260,6 +295,17 @@
 /* ============================================
    Dark Theme Styles for Event Page
    ============================================ */
+
+/* Strip theme body margins on full-screen event pages */
+body.lem-fullscreen-event {
+    margin: 0;
+    padding: 0;
+}
+
+/* Added via JS only on the watch/player page — marketing page must remain scrollable */
+body.lem-watch-mode {
+    overflow: hidden;
+}
 
 .lem-live-events-app {
     display: flex;
@@ -417,15 +463,250 @@ body.lem-dark-theme,
     line-height: 1.2;
 }
 
-/* Watch Layout */
+/* Watch Layout — Twitch-style: player column + chat sidebar */
 .lem-watch-layout {
     display: grid;
-    grid-template-columns: 280px 1fr 320px;
-    height: calc(100vh - 120px); /* Adjusted for single event details bar instead of action bar */
+    grid-template-columns: 1fr 340px;
+    height: calc(100vh - 54px); /* full height below nav */
+    overflow: hidden;
+    background: #0f0f1e;
+}
+
+/* Account for WP admin bar (32px desktop, 46px mobile) */
+.admin-bar .lem-watch-layout {
+    height: calc(100vh - 54px - 32px);
+}
+
+/* Player column */
+.lem-player-col {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #0f0f1e;
+}
+
+.lem-player-wrap {
+    flex: 1;
+    min-height: 0;
+    background: #000;
+    width: 100%;
+    line-height: 0; /* kill gap below inline mux-player */
+    display: flex;
+    flex-direction: column;
+}
+
+.lem-player-wrap mux-player {
+    flex: 1;
+    min-height: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.lem-stream-info {
+    padding: 1.25rem 1.75rem 1.75rem;
+    background: #12121f;
+    border-top: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
+    overflow-y: auto;
+    max-height: 220px;
+}
+
+.lem-stream-info-main {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.lem-stream-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #e53e3e;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.lem-live-dot {
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    border-radius: 50%;
+    animation: lem-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes lem-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+.lem-stream-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.lem-stream-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.lem-stream-desc {
+    font-size: 0.9rem;
+    color: #aaa;
+    margin: 0.4rem 0 0;
+    line-height: 1.5;
+}
+
+.lem-stream-body {
+    font-size: 0.9rem;
+    color: #bbb;
+    margin-top: 0.75rem;
+    line-height: 1.6;
+}
+
+/* Chat sidebar */
+.lem-chat-col {
+    display: flex;
+    flex-direction: column;
+    background: #16162a;
+    border-left: 1px solid rgba(255,255,255,0.08);
     overflow: hidden;
 }
 
-/* Sidebars */
+.lem-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #ccc;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+
+.lem-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.75rem 0;
+    scroll-behavior: smooth;
+}
+
+.lem-chat-messages::-webkit-scrollbar { width: 4px; }
+.lem-chat-messages::-webkit-scrollbar-track { background: transparent; }
+.lem-chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
+
+.lem-chat-empty {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: #555;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.lem-chat-footer {
+    padding: 1rem 1rem 1.25rem;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+    background: #16162a;
+}
+
+.lem-chat-input-wrap {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.lem-chat-input-field {
+    flex: 1;
+    padding: 0.65rem 0.9rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 0.875rem;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.lem-chat-input-field::placeholder { color: #555; }
+
+.lem-chat-input-field:focus {
+    outline: none;
+    border-color: #7f5af0;
+    background: rgba(255,255,255,0.09);
+}
+
+.lem-chat-send-btn {
+    padding: 0.65rem 0.8rem;
+    background: #7f5af0;
+    border: none;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.lem-chat-send-btn:hover { opacity: 0.85; }
+
+.lem-chat-rules {
+    margin: 0.4rem 0 0;
+    font-size: 0.72rem;
+    color: #555;
+    text-align: center;
+}
+
+/* Incoming chat messages (for when Ably is wired up) */
+.lem-chat-message {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    transition: background 0.2s;
+}
+
+.lem-chat-message:hover { background: rgba(255,255,255,0.04); }
+
+.lem-chat-content { flex: 1; min-width: 0; }
+
+.lem-chat-name {
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #a78bfa;
+    margin-bottom: 0.15rem;
+}
+
+.lem-chat-text {
+    font-size: 0.875rem;
+    color: #c0c0c0;
+    word-wrap: break-word;
+}
+
+.lem-chat-time {
+    font-size: 0.72rem;
+    color: #555;
+    white-space: nowrap;
+    margin-top: 0.1rem;
+}
+
+/* Sidebars (legacy — kept for backwards compat) */
 .lem-sidebar {
     background: #1a1a2e;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -731,23 +1012,28 @@ body.lem-dark-theme,
     color: #fff;
 }
 
-/* Marketing Page */
+/* ── Marketing page layout ──────────────────────────────────────────────── */
+/* Single source of horizontal padding — all children use zero h-padding    */
 .lem-marketing-page {
-    max-width: 1200px;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 0 1.5rem 4rem;   /* top-0 so hero owns its own top space */
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .lem-marketing-hero {
     text-align: center;
-    padding: 4rem 2rem;
+    padding: 3rem 0 2rem;     /* horizontal = 0, parent handles it */
 }
 
+/* .lem-marketing-content is a redundant wrapper; no special styles needed */
+
 .lem-marketing-title {
-    font-size: 3rem;
+    font-size: 2.75rem;
     font-weight: 700;
     color: #fff;
-    margin-bottom: 1rem;
+    margin: 0 0 1rem;
 }
 
 .lem-marketing-date {
@@ -755,16 +1041,16 @@ body.lem-dark-theme,
     align-items: center;
     gap: 0.5rem;
     color: #b0b0b0;
-    font-size: 1.25rem;
-    margin-bottom: 1.5rem;
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
 }
 
 .lem-marketing-description {
-    font-size: 1.25rem;
+    font-size: 1.0625rem;
     color: #b0b0b0;
-    max-width: 800px;
-    margin: 0 auto 3rem;
-    line-height: 1.6;
+    max-width: 640px;
+    margin: 0 auto 1.25rem;
+    line-height: 1.65;
 }
 
 .lem-marketing-image {
@@ -780,69 +1066,79 @@ body.lem-dark-theme,
     display: block;
 }
 
+/* ── Marketing section: single-column stacked ──────────────────────────── */
+/* 1. Ticket hero card — full width, centred                                */
+/* 2. Feature row — 4 boxes across                                          */
+/* 3. About This Event — full width                                         */
 .lem-marketing-section {
-    display: grid;
-    gap: 3rem;
-    margin-top: 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    margin-top: 2.5rem;
 }
 
+/* ── Ticket hero card — full-width centred hero ─────────────────────────── */
 .lem-marketing-card {
-    background: #1a1a2e;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 2rem;
-    text-align: center;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    background: linear-gradient(160deg, #1e1b38 0%, #1a1a2e 100%);
+    border: 1px solid rgba(127, 90, 240, 0.25);
+    border-radius: 20px;
+    padding: 2.5rem 2rem 2rem;
+    box-shadow: 0 8px 40px rgba(127, 90, 240, 0.12), 0 2px 12px rgba(0,0,0,0.4);
 }
 
-.lem-marketing-card h2 {
-    font-size: 2rem;
-    color: #fff;
-    margin-bottom: 1rem;
-}
-
-.lem-marketing-card p {
-    font-size: 1.125rem;
-    color: #b0b0b0;
-    margin-bottom: 2rem;
-}
-
+/* Feature row — 2 per row on desktop */
 .lem-marketing-features {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 2rem;
-    margin-top: 3rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
 }
 
 .lem-feature {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    padding: 2rem;
+    padding: 2.5rem 2rem;
     background: #1a1a2e;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    transition: border-color 0.2s, transform 0.2s;
+}
+
+.lem-feature:hover {
+    border-color: rgba(127, 90, 240, 0.4);
+    transform: translateY(-3px);
 }
 
 .lem-feature svg {
     color: #7f5af0;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
+    flex-shrink: 0;
 }
 
 .lem-feature h3 {
     color: #fff;
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
 }
 
 .lem-feature p {
     color: #b0b0b0;
     font-size: 0.95rem;
+    line-height: 1.6;
+    max-width: 260px;
 }
 
+/* About This Event */
 .lem-marketing-details {
     background: #1a1a2e;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     padding: 2rem;
-    margin-top: 3rem;
 }
 
 .lem-marketing-details h2 {
@@ -856,39 +1152,128 @@ body.lem-dark-theme,
     line-height: 1.8;
 }
 
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.lem-tabs {
+    display: flex;
+    gap: 0.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 0.3rem;
+    margin-bottom: 1.5rem;
+}
+
+.lem-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+    white-space: nowrap;
+}
+
+.lem-tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.lem-tab-btn--active {
+    background: #7f5af0;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(127, 90, 240, 0.4);
+}
+
+.lem-tab-btn--active:hover {
+    background: #6b46e0;
+}
+
+/* ── Tab panels ─────────────────────────────────────────────────────────── */
+.lem-tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.lem-tab-panel--hidden {
+    display: none;
+}
+
+.lem-resend-hint {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 0 0 0.75rem;
+    line-height: 1.6;
+    text-align: center;
+}
+
 /* Dark theme adjustments for ticket block */
 .lem-marketing-card .lem-event-ticket-block {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border-color: rgba(255, 255, 255, 0.1);
 }
 
 .lem-marketing-card .lem-email-input {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #e0e0e0;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: #e2e2f0;
 }
 
 .lem-marketing-card .lem-email-input:focus {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     border-color: #7f5af0;
+    box-shadow: 0 0 0 4px rgba(127, 90, 240, 0.2);
 }
 
 .lem-marketing-card .lem-email-input::placeholder {
-    color: #999;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.lem-marketing-card .lem-input-icon {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.lem-marketing-card .lem-stripe-badge {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.lem-marketing-card .lem-stripe-badge svg:first-child {
+    stroke: rgba(255, 255, 255, 0.4);
 }
 
 /* Responsive */
 @media (max-width: 1024px) {
     .lem-watch-layout {
-        grid-template-columns: 240px 1fr 280px;
+        grid-template-columns: 1fr 300px;
+    }
+}
+
+@media (max-width: 782px) {
+    /* WP admin bar is 46px tall on mobile */
+    .admin-bar .lem-watch-layout {
+        height: calc(100vh - 54px - 46px);
     }
 }
 
 @media (max-width: 768px) {
     .lem-watch-layout {
         grid-template-columns: 1fr;
+        height: auto;
     }
-    
+
+    .lem-chat-col {
+        height: 420px;
+        border-left: none;
+        border-top: 1px solid rgba(255,255,255,0.08);
+    }
+
     .lem-sidebar {
         display: none;
     }
@@ -917,16 +1302,42 @@ body.lem-dark-theme,
     .lem-marketing-title {
         font-size: 2rem;
     }
-    
-    .lem-marketing-features {
-        grid-template-columns: 1fr;
+
+    .lem-marketing-page {
+        padding: 0 1rem 3rem;
     }
-    
+
+    /* Features stay 2-per-row on tablet — already set */
+
     .lem-top-nav {
         padding: 1rem;
     }
-    
+
     .lem-nav-center {
         display: none;
     }
-} 
+}
+
+@media (max-width: 480px) {
+    .lem-marketing-title {
+        font-size: 1.6rem;
+    }
+
+    .lem-marketing-page {
+        padding: 0 0.75rem 2.5rem;
+    }
+
+    /* Single column on small phones */
+    .lem-marketing-features {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .lem-feature {
+        padding: 2rem 1.5rem;
+    }
+
+    .lem-marketing-card {
+        padding: 1.5rem 1rem 1.25rem;
+    }
+}

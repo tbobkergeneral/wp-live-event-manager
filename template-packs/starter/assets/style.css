@@ -1,0 +1,10 @@
+/*
+ * Starter Template — style.css
+ * Loaded after the base lem-public.css on all LEM pages.
+ * Add your custom overrides here.
+ */
+
+/* Example: change the primary accent colour */
+:root {
+    --lem-color-primary: #6366f1;
+}

@@ -1,220 +1,155 @@
 # Live Event Manager – User Guide
 
 ## Overview
-Secure WordPress streaming paywall that combines Stripe checkout, Mux streaming, and JWT/Redis access control. Event pages automatically surface a "Watch Now" button when a viewer already holds an active ticket.
 
-## Quick Start
+Live Event Manager is a WordPress plugin for ticketing and secure playback of live and on-demand events. It ties together **Stripe** (checkout), a **streaming provider** (**Mux** or self-hosted **OvenMediaEngine / OME**), **JWT-style playback tokens**, and **Upstash Redis** (HTTP) for sessions and magic links.
 
-### 1. Initial Setup
-1. **Activate the plugin** in WordPress Admin → Plugins
-2. **Configure Stream Vendors** (Live Events → Stream Vendors)
-   - Enter Mux API credentials (Token ID, Token Secret, Signing Key ID, Private Key)
-   - Note: Additional streaming providers can be added in the future
-3. **Configure Settings** (Live Events → Settings)
-   - **Stripe**: Enter publishable/secret keys and webhook secrets (test & live)
-   - **Redis**: Enable and configure Redis connection (host, port, password, database)
-   - **Webhooks**: Copy webhook URLs for Stripe and Mux configuration
-4. **Test Connections**: Use the Redis test button to verify connectivity
+When a visitor already has access, event pages can show a **Watch** path automatically; otherwise they see purchase or resend options.
 
-### 2. Create Your First Stream
-1. Go to **Live Events → Stream Management**
-2. Enter a **Stream Name** (e.g., "Main Event Stream")
-3. Optionally enable **Reduced Latency** or **Test Mode**
-4. Click **Create Stream**
-5. The stream will appear in your streams list
+**Plugin version:** see the WordPress Plugins list or `live-event-manager.php` header (e.g. 1.1.0).
 
-### 3. Create Your First Event
-1. Go to **Live Events → Add New**
-2. Fill in **Title**, **Description**, and **Featured Image**
-3. In **Event Details**:
-   - **Select Stream**: Choose from dropdown (shows streams from both providers)
-   - **Playback ID**: Auto-populated from selected stream
-   - **Live Stream ID**: Auto-populated from selected stream
-   - **Event Date & Time**: Set when the event occurs
-   - **Event Type**: Choose Free or Paid
-   - **Stripe Price ID**: Required for paid events
-4. **Publish** the event
+## Quick start
 
-## Complete Workflow
+### 1. Activate and open Live Events
 
-### Step 1: Configure Streaming Providers
+1. **Plugins** → activate **Live Event Manager**.
+2. In the admin sidebar, open **Live Events** (custom post type `lem_event`).
 
-#### Mux Setup
-1. Go to **Live Events → Stream Vendors → Mux Tab**
-2. Enter your Mux credentials:
-   - **Mux Signing Key ID**: From Mux Dashboard → Settings → Signing Keys
-   - **Mux Private Key (Base64)**: Your signing private key
-   - **Mux API Token ID**: For API access
-   - **Mux API Token Secret**: For API access
-   - **Mux Webhook Secret**: Optional, for webhook verification
-3. Save settings
+### 2. Cache (required for production access flows)
 
-### Step 2: Create Streams
+1. Go to **Live Events → Settings**.
+2. Under **Upstash Redis**, add your **REST URL** and **REST token** from [Upstash](https://upstash.com) (no server Redis extension required).
+3. Use **Test Upstash Connection** (or **Live Events → Debug**) to verify.
 
-#### Using Stream Manager
-1. Go to **Live Events → Stream Management**
-2. **Enter Stream Name**: A friendly name for your stream
-3. **Options**:
-   - **Reduced Latency**: Enable for lower latency
-   - **Test Mode**: Create as test stream
-4. Click **Create Stream**
-5. Stream appears in list with Mux badge
+Until Upstash is configured, the plugin shows a notice and session/magic-link behavior should not be relied on.
 
-**Note**: 
-- **Mux streams** are created via Mux API and include playback IDs
-- Streams are automatically configured with public playback policies
+### 3. Stripe
 
-### Step 3: Create Events
+On **Settings**, enter Stripe **publishable** and **secret** keys and webhook secrets (test/live as needed). Copy the **Stripe webhook** URL from **Debug** (or Settings) into the Stripe Dashboard.
 
-1. **Navigate to Events → Add New**
-2. **Basic Information**:
-   - Title, description, featured image
-   - Event date & time
-3. **Stream Configuration**:
-   - **Select Stream**: Dropdown shows all Mux streams
-   - **Playback ID**: Auto-filled from selected stream
-   - **Live Stream ID**: Auto-filled from selected stream
-4. **Pricing**:
-   - **Free Event**: No payment required
-   - **Paid Event**: Requires Stripe Price ID and Display Price
-5. **Publish** the event
+### 4. Streaming provider
 
-### Step 4: Publish Your Stream
+1. **Settings** → **Active provider**: choose **Mux** or **OME**.
+2. **Live Events → Vendors** → open each provider tab you use and save **Credentials** (and any extra tabs that provider exposes).
 
-1. Go to **Live Events → Publisher**
-2. **Select Event** from dropdown
-3. View **RTMP Publishing** section:
-   - **Stream Key**: Copy to clipboard
-   - **Ingest URL**: Copy to clipboard
-4. **Configure OBS**:
-   - Settings → Stream
-   - Service: Custom
-   - Server: Paste Ingest URL
-   - Stream Key: Paste Stream Key
-5. **Add Simulcast Targets** (optional):
-   - Go to **Stream Setup** page
-   - Add YouTube/Twitch RTMP URLs
-   - Stream forwards automatically when active
+### 5. Streams and events
 
-### Step 5: Manage Streams
+1. **Live Events → Live Streams** — create a stream (options such as reduced latency / test mode depend on provider).
+2. **Live Events → Add New** — create an event; in **Event Details**, pick the stream, set date/time, free vs paid, and Stripe price for paid events.
+3. Publish the event.
 
-#### Stream Management Page
-- **Create**: New streams with provider selection
-- **Edit**: Update stream names and settings
-- **Delete**: Remove streams via Mux API
-- **View**: All streams with provider indicators
+## Streaming providers
 
-#### Stream Setup Page
-- **Select Stream**: Choose from Mux streams
-- **Mux Streams**: Show RTMP switchboard and Simulcast targets
+### Mux (cloud)
 
-## Admin Pages Reference
+1. **Vendors** → **Mux** → **Credentials**:
+   - Signing key ID and private key (for playback tokens)
+   - API token ID and secret (for Live API / streams)
+   - Optional webhook secret
+2. **Settings** → set **Active provider** to Mux if this is your default path.
 
-### Core Pages
-- **All Events**: List and manage all live events
-- **Add New**: Create new events
-- **User Guide**: This comprehensive guide
+Streams are created via the Mux API; playback IDs and ingest details appear on **Live Streams** when you expand a stream.
 
-### Configuration Pages
-- **Stream Vendors**: Configure Mux credentials (can be extended for additional providers)
-- **Settings**: Redis, Stripe, webhook documentation, debug settings
-- **Stream Management**: Create, edit, delete Mux streams
-- **Stream Setup**: Configure existing streams (RTMP switchboard and Simulcast targets)
+### OvenMediaEngine (OME, self-hosted)
 
-### Management Pages
-- **Publisher**: Select event → view provider-specific publish instructions
-- **JWT Manager**: View, revoke tokens, resend magic links
-- **Restrictions**: Manage Mux playback restrictions
-- **Device Settings**: Configure device identification
-- **System Debug**: Health checks, Redis tests, diagnostics
+1. **Vendors** → **OME** → **Credentials**: server URL, API URL/token, application/stream names, **signing key** for Signed Policy URLs, ports/TTL as needed. See [OvenMediaEngine](https://ovenmediaengine.com).
+2. **Settings** → set **Active provider** to **OME** when events should use OME playback (Signed Policy + OvenPlayer-style flows).
 
-## Viewer Experience
+Playback tokens are provider-specific (Mux JWT vs OME signed URLs); the plugin stores what each provider needs for the viewer session.
 
-### Free Events
-1. Visitor enters email on event page
-2. JWT generated immediately
-3. Magic link sent via email
-4. Click link → Watch page with player
+## Live Streams
 
-### Paid Events
-1. Visitor enters email on event page
-2. Redirected to Stripe Checkout
-3. After payment, webhook processes:
-   - JWT generated
-   - Magic link sent via email
-4. Click link → Watch page with player
+**Live Events → Live Streams** combines stream listing, creation, and per-stream setup:
 
-### Access Features
-- **Magic Links**: One-time access URLs with 8-character code
-- **Resend Links**: Request new link using email + code
-- **Device Swap**: Change devices if needed
-- **Session Persistence**: Redis-backed session management
+- Select or create a stream.
+- For supported providers (e.g. Mux), use **RTMP ingest URL** and **stream key** with OBS or similar.
+- **Simulcast targets** (e.g. YouTube/Twitch RTMP) are managed here when the provider supports them.
 
-## Features
+**Bookmarks:** the old **Stream Setup** menu slug still redirects to **Live Streams** with the same query args.
 
-### Mux Integration
-- **RTMP Publishing**: Standard RTMP for OBS/Streamlabs
-- **Simulcast Targets**: Forward to YouTube, Twitch automatically
-- **Playback Restrictions**: Domain/IP restrictions
-- **Asset Recording**: Automatic VOD creation
-- **Dual-State Player**: Live mode + VOD fallback
-- **Stream Management**: Create, edit, delete streams via API
+**Publisher (optional):** a separate screen exists at  
+`edit.php?post_type=lem_event&page=live-event-manager-publisher`  
+(event picker + RTMP instructions). It is not in the main submenu; the **User Guide** page in the admin includes a quick link.
 
-## Best Practices
+## Events
 
-### Stream Management
-1. **Use descriptive stream names** for easy identification
-2. **Create streams before events** for better organization
-3. **Test streams** before going live
-4. **Keep credentials secure** - never share publicly
+1. **Live Events → Add New** (or **All Events** → edit).
+2. Title, content, featured image, **Event Details** meta:
+   - **Stream** selection and playback fields (often auto-filled from the stream).
+   - **Schedule**, **Free vs Paid**, **Stripe Price ID** and display price for paid events.
+3. Use the block editor blocks **Event ticket** (`lem/event-ticket`) and **Gated video** (`lem/gated-video`) on pages as needed.
+4. Shortcode: `[simulcast_player]` where documented for your theme.
 
-### Event Creation
-1. **Select streams from dropdown** to auto-fill details
-2. **Use per-event streams** for multiple concurrent events
-3. **Set event dates** for scheduling
-4. **Test free events** before creating paid ones
+## Access, tokens, and revocations
 
-### Publishing
-1. **Use Publisher page** for provider-specific instructions
-2. **Test connection** before going live
-3. **Set up Simulcast** (Mux) before starting stream
-4. **Monitor stream status** in Stream Setup page
+- **Live Events → Access Tokens** — list JWT/session records, revoke, resend magic links.
+- **Live Events → Revoke access** — record **entitlement revocations** (email + event) in the database; checks consult this together with cache/session state.
+
+Free events can issue access immediately after email validation (when configured). Paid events issue access after **Stripe Checkout** and webhook processing.
+
+## Payments
+
+**Live Events → Payments** lists paid checkouts tied to issued access (Stripe Checkout session IDs, expiry, revoked state). Filter by event; **CSV export** is available from that screen.
+
+## Template packs
+
+**Live Events → Templates** — upload a template pack ZIP, activate it, or download bundled packs.
+
+- Installed packs live under `wp-content/lem-templates/{slug}/`.
+- The active pack overrides files such as `single-event.php` and `event-ticket-block.php`; missing files fall back to the plugin `templates/` directory or bundled `template-packs/{slug}/` copies.
+
+## Viewer experience
+
+- **Purchase** — ticket block collects email; paid paths redirect to Stripe.
+- **Magic link** — email contains a one-time style link and often an **access code** for resend flows.
+- **Resend** — confirmation, event, and watch surfaces use the regenerate / validate email actions (`lem_regenerate_jwt`, etc.).
+- **Device rules** — **Live Events → Devices** configures identification behavior used in device-swap flows.
+- **Watch** — with a valid token, the player loads (Mux player or OME/OvenPlayer per provider). Entitlement checks can run via AJAX (`lem_check_event_access`) on the event page.
+
+## Optional: Ably live chat
+
+On **Settings**, add an **Ably API key**. When set, watch flows can request short-lived Ably tokens for scoped chat channels. If Ably is not configured, chat UI stays hidden.
+
+## REST API
+
+Base URL: `/wp-json/lem/v1/` (your site URL + REST prefix).
+
+- Most routes require an administrator (`manage_options`), e.g. **live-streams**, **rtmp-info**, **simulcast-targets**, **stream-status**, **jwt-settings** (GET).
+- **`POST /lem/v1/check-jwt-status`** — supply a JWT (e.g. `jwt` or `token` parameter); used for **revocation / status** checks from edge infrastructure (e.g. Cloudflare Worker) that already validates signatures separately.
+
+## Admin pages (reference)
+
+| Menu item | Purpose |
+|-----------|---------|
+| **All Events** / **Add New** | CPT list and new event |
+| **Live Streams** | Streams, RTMP, simulcast |
+| **Vendors** | Per-provider credentials (Mux, OME, …) |
+| **Access Tokens** | JWT/session list, revoke, resend |
+| **Revoke access** | DB entitlement revocations |
+| **Payments** | Checkout records, CSV |
+| **Settings** | Stripe, Upstash, Ably, active provider, webhooks |
+| **Devices** | Device identification settings |
+| **Templates** | Template packs |
+| **User Guide** | This document (rendered from `docs/user-guide.md`) |
+| **Debug** | Health checks, tests, webhook URLs |
+
+**Mux playback restrictions** may still be managed via API flows surfaced on **Vendors** / **Debug** in some setups; there is no separate top-level “Restrictions” menu in current builds.
 
 ## Troubleshooting
 
-### Authentication Issues
-- **403 Forbidden**: Check Stream Manager URL, username, password
-- **401 Unauthorized**: Verify credentials in Stream Vendors
-- **Check debug log**: `wp-content/debug.log` for detailed errors
+- **Upstash / sessions** — confirm REST URL and token; test from **Debug** or Settings. Magic links and multi-step access depend on cache working.
+- **Stripe / no access after payment** — webhook URL and signing secret; replay events from Stripe Dashboard; check **Debug** and `wp-content/debug.log` for `[LEM]` lines.
+- **Mux API errors** — **Vendors → Mux** token ID/secret and signing keys; **Live Streams** errors often link back to **Vendors**.
+- **OME playback** — verify Signed Policy **signing key** and server/API URLs on **Vendors → OME**.
+- **Token valid but no video** — **Access Tokens** and **Revoke access**; confirm event/stream IDs and provider on the event.
 
-### Stream Creation Issues
-- **Mux**: Verify API Token ID/Secret in Stream Vendors
-- Ensure Mux is configured before creating streams
+## Reporting issues
 
-### Publishing Issues
-- **Mux RTMP**: Verify stream is active, check credentials
-- Use Publisher page for correct RTMP URLs
+Include:
 
-### Event Access Issues
-- **JWT not working**: Check JWT Manager, verify token not revoked
-- **Magic link expired**: Request new link using email + code
-- **Redis issues**: Test connection in Settings page
+1. Steps to reproduce  
+2. Event ID, URLs (sanitize secrets)  
+3. Active provider (Mux vs OME) and whether Upstash/Stripe show as configured on **Debug**  
+4. Relevant lines from `wp-content/debug.log`  
 
-## Technical Details
-
-### Stream ID Resolution
-1. Event meta `_lem_live_stream_id` (if set)
-2. Provider-specific default (if configured)
-3. Used for publishing and playback
-
-### API Endpoints
-- **Mux**: Uses Mux Video API v1
-- Authenticated via Basic Auth (Token ID/Secret)
-
-## Support
-
-When reporting issues, include:
-- Steps to reproduce
-- Relevant URLs and event IDs
-- Debug log excerpts (`wp-content/debug.log`)
-- Mux API configuration status
+For integration details beyond this guide, see the repository **README.md**.

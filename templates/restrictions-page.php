@@ -1,3 +1,4 @@
+<?php if (!defined('ABSPATH')) exit; ?>
 <div class="wrap">
     <h1>Playback Restrictions</h1>
     
@@ -126,14 +127,17 @@
 
 <script>
 jQuery(document).ready(function($) {
+    // HTML escape helper
+    function escHtml(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
     // Notification function
     function showNotification(message, type = 'info') {
         // Remove existing notifications
         $('.lem-notification').remove();
-        
+
         var notification = $('<div class="lem-notification ' + type + '">' +
             '<span class="close">&times;</span>' +
-            '<span class="message">' + message + '</span>' +
+            '<span class="message">' + escHtml(message) + '</span>' +
         '</div>');
         
         $('body').append(notification);
@@ -198,7 +202,7 @@ jQuery(document).ready(function($) {
             if (response.success) {
                 displayRestrictions(response.data);
             } else {
-                $('#lem-restrictions-list').html('<p>Error loading restrictions: ' + response.data + '</p>');
+                $('#lem-restrictions-list').html('<p>Error loading restrictions: ' + escHtml(response.data) + '</p>');
             }
         });
     }
@@ -220,11 +224,11 @@ jQuery(document).ready(function($) {
             if (restriction.user_agent.allow_high_risk_user_agent) settings.push('Allow high-risk user agent');
             
             html += '<tr>';
-            html += '<td>' + restriction.id + '</td>';
-            html += '<td>' + restriction.id + '</td>'; // Using ID as name since Mux doesn't store custom names
-            html += '<td>' + domains + '</td>';
-            html += '<td>' + settings.join(', ') + '</td>';
-            html += '<td><button class="button button-small lem-delete-restriction" data-id="' + restriction.id + '">Delete</button></td>';
+            html += '<td>' + escHtml(restriction.id) + '</td>';
+            html += '<td>' + escHtml(restriction.id) + '</td>'; // Using ID as name since Mux doesn't store custom names
+            html += '<td>' + escHtml(domains) + '</td>';
+            html += '<td>' + escHtml(settings.join(', ')) + '</td>';
+            html += '<td><button class="button button-small lem-delete-restriction" data-id="' + escHtml(restriction.id) + '">Delete</button></td>';
             html += '</tr>';
         });
         

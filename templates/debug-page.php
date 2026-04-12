@@ -1,5 +1,6 @@
+<?php if (!defined('ABSPATH')) exit; ?>
 <div class="wrap">
-    <h1>System Debug</h1>
+    <h1>Debug</h1>
     
     <div class="lem-admin-container">
         <!-- Redis Connection Test -->
@@ -483,12 +484,15 @@
 
 <script>
 jQuery(document).ready(function($) {
+    // HTML escape helper
+    function escHtml(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
     // Ensure lem_ajax object is available
     if (typeof lem_ajax === 'undefined') {
         console.warn('lem_ajax object not found, creating fallback');
         window.lem_ajax = {
-            ajax_url: '<?php echo admin_url('admin-ajax.php'); ?>',
-            nonce: '<?php echo wp_create_nonce('lem_nonce'); ?>'
+            ajax_url: <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>,
+            nonce: <?php echo wp_json_encode(wp_create_nonce('lem_nonce')); ?>
         };
     }
     
@@ -542,20 +546,20 @@ jQuery(document).ready(function($) {
             nonce: lem_ajax.nonce
         }, function(response) {
             if (response.success) {
-                var html = '<h4>✅ ' + response.data.message + '</h4>';
+                var html = '<h4>✅ ' + escHtml(response.data.message) + '</h4>';
                 html += '<table class="form-table">';
-                html += '<tr><th>Redis Version:</th><td>' + response.data.redis_version + '</td></tr>';
-                html += '<tr><th>Connected Clients:</th><td>' + response.data.connected_clients + '</td></tr>';
-                html += '<tr><th>Used Memory:</th><td>' + response.data.used_memory_human + '</td></tr>';
+                html += '<tr><th>Redis Version:</th><td>' + escHtml(response.data.redis_version) + '</td></tr>';
+                html += '<tr><th>Connected Clients:</th><td>' + escHtml(response.data.connected_clients) + '</td></tr>';
+                html += '<tr><th>Used Memory:</th><td>' + escHtml(response.data.used_memory_human) + '</td></tr>';
                 html += '<tr><th>Uptime:</th><td>' + Math.floor(response.data.uptime_in_seconds / 3600) + ' hours</td></tr>';
-                html += '<tr><th>Current Database:</th><td>' + response.data.current_database + '</td></tr>';
-                html += '<tr><th>Host:</th><td>' + response.data.host + '</td></tr>';
-                html += '<tr><th>Port:</th><td>' + response.data.port + '</td></tr>';
+                html += '<tr><th>Current Database:</th><td>' + escHtml(response.data.current_database) + '</td></tr>';
+                html += '<tr><th>Host:</th><td>' + escHtml(response.data.host) + '</td></tr>';
+                html += '<tr><th>Port:</th><td>' + escHtml(response.data.port) + '</td></tr>';
                 html += '</table>';
-                
+
                 $result.addClass('success').html(html).show();
             } else {
-                $result.addClass('error').html('<h4>❌ Redis Test Failed</h4><p>' + response.data + '</p>').show();
+                $result.addClass('error').html('<h4>❌ Redis Test Failed</h4><p>' + escHtml(response.data) + '</p>').show();
             }
         }).fail(function() {
             $result.addClass('error').html('<h4>❌ Network Error</h4><p>Failed to connect to server.</p>').show();
@@ -581,19 +585,19 @@ jQuery(document).ready(function($) {
                 var html = '<h4>🔍 Redis Status Check</h4>';
                 html += '<table class="form-table">';
                 html += '<tr><th>Redis Enabled:</th><td>' + (response.data.enabled ? '✅ Yes' : '❌ No') + '</td></tr>';
-                html += '<tr><th>Host:</th><td>' + response.data.host + '</td></tr>';
-                html += '<tr><th>Port:</th><td>' + response.data.port + '</td></tr>';
-                html += '<tr><th>Database:</th><td>' + response.data.database + '</td></tr>';
+                html += '<tr><th>Host:</th><td>' + escHtml(response.data.host) + '</td></tr>';
+                html += '<tr><th>Port:</th><td>' + escHtml(response.data.port) + '</td></tr>';
+                html += '<tr><th>Database:</th><td>' + escHtml(response.data.database) + '</td></tr>';
                 html += '<tr><th>Password Set:</th><td>' + (response.data.password_set ? 'Yes' : 'No') + '</td></tr>';
                 html += '</table>';
-                
+
                 if (!response.data.enabled) {
                     html += '<div class="notice notice-warning"><p><strong>Redis is disabled!</strong> Enable it in Live Events > Settings > Redis Configuration.</p></div>';
                 }
-                
+
                 $result.addClass('info').html(html).show();
             } else {
-                $result.addClass('error').html('<h4>❌ Status Check Failed</h4><p>' + response.data + '</p>').show();
+                $result.addClass('error').html('<h4>❌ Status Check Failed</h4><p>' + escHtml(response.data) + '</p>').show();
             }
         }).fail(function() {
             $result.addClass('error').html('<h4>❌ Network Error</h4><p>Failed to check Redis status.</p>').show();
@@ -632,19 +636,19 @@ jQuery(document).ready(function($) {
             console.log('AJAX response received:', response);
             if (response.success) {
                 var html = '<h4>✅ All Tokens Cleared Successfully</h4>';
-                html += '<p>' + response.data.message + '</p>';
+                html += '<p>' + escHtml(response.data.message) + '</p>';
                 html += '<div class="lem-stats">';
-                html += '<div class="lem-stat"><span class="number">' + response.data.results.mysql_deleted + '</span><div class="label">Database Records Deleted</div></div>';
-                html += '<div class="lem-stat"><span class="number">' + response.data.results.redis_keys_deleted + '</span><div class="label">Redis Keys Deleted</div></div>';
+                html += '<div class="lem-stat"><span class="number">' + escHtml(String(response.data.results.mysql_deleted)) + '</span><div class="label">Database Records Deleted</div></div>';
+                html += '<div class="lem-stat"><span class="number">' + escHtml(String(response.data.results.redis_keys_deleted)) + '</span><div class="label">Redis Keys Deleted</div></div>';
                 html += '</div>';
-                
+
                 if (response.data.results.redis_error) {
-                    html += '<div class="notice notice-warning"><p><strong>Redis Warning:</strong> ' + response.data.results.redis_error + '</p></div>';
+                    html += '<div class="notice notice-warning"><p><strong>Redis Warning:</strong> ' + escHtml(response.data.results.redis_error) + '</p></div>';
                 }
-                
+
                 $result.addClass('success').html(html).show();
             } else {
-                $result.addClass('error').html('<h4>❌ Clear Failed</h4><p>' + response.data + '</p>').show();
+                $result.addClass('error').html('<h4>❌ Clear Failed</h4><p>' + escHtml(response.data) + '</p>').show();
             }
         }).fail(function(xhr, status, error) {
             console.log('AJAX request failed:', {xhr: xhr, status: status, error: error});

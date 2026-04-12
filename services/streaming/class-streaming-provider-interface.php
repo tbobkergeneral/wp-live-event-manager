@@ -114,9 +114,34 @@ interface LEM_Streaming_Provider_Interface {
      * Get settings fields for admin
      */
     public function get_settings_fields();
-    
+
     /**
      * Validate settings
      */
     public function validate_settings($settings);
+
+    /**
+     * Whether this provider requires periodic client-side token refresh.
+     *
+     * Return true  when tokens are short-lived and must be rotated while the
+     *              stream is playing (e.g. OME Signed Policy URLs).
+     * Return false when the token covers the full event duration and mid-stream
+     *              refresh is either unsupported or unsafe (e.g. Mux RS256 JWT).
+     *
+     * The template exposes this as window.lemTokenRefreshEnabled so JS never
+     * needs to branch on a vendor name.
+     *
+     * @return bool
+     */
+    public function supports_token_refresh();
+
+    /**
+     * Return additional admin sub-tabs to render inside this provider's vendor page.
+     *
+     * Each entry: 'slug' => [ 'label' => 'Tab Label', 'template' => '/abs/path/to/template.php' ]
+     * Return an empty array if the provider has no extra tabs.
+     *
+     * @return array
+     */
+    public function get_extra_tabs();
 }

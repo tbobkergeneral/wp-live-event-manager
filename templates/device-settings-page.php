@@ -3,29 +3,34 @@
 if (!defined('ABSPATH')) exit;
 
 $device_service = new DeviceIdentificationService();
-$settings = $device_service->getSettings();
+$settings = array_merge([
+    'identification_method' => 'session_based',
+    'max_devices'           => (int)(get_option('lem_device_settings', [])['max_devices'] ?? 1),
+], (array) $device_service->getSettings());
 
 if (isset($_POST['submit_device_settings'])) {
     check_admin_referer('lem_device_settings', 'lem_device_nonce');
-    
+
+    $max_devices = max(1, min(20, (int)($_POST['max_devices'] ?? 1)));
+
     $new_settings = array(
-        'identification_method' => sanitize_text_field($_POST['identification_method'] ?? 'session_based'),
-        'ip_fallback_enabled' => isset($_POST['ip_fallback_enabled']),
-        'session_fallback_enabled' => isset($_POST['session_fallback_enabled']),
-        'fingerprint_enabled' => isset($_POST['fingerprint_enabled']),
-        'custom_token_enabled' => isset($_POST['custom_token_enabled']),
-        'strict_mode' => isset($_POST['strict_mode'])
+        'identification_method' => 'session_based', // always session-based
+        'max_devices'           => $max_devices,
     );
-    
+
     $device_service->updateSettings($new_settings);
     $settings = $device_service->getSettings();
-    
+
+    // Also persist max_devices in the dedicated option read by create_session()
+    $existing = get_option('lem_device_settings', array());
+    update_option('lem_device_settings', array_merge($existing, array('max_devices' => $max_devices)));
+
     echo '<div class="notice notice-success"><p>Device identification settings updated successfully!</p></div>';
 }
 ?>
 
 <div class="wrap">
-    <h1>Device Identification Settings</h1>
+    <h1>Devices</h1>
     <p>Configure how devices and users are identified for JWT validation and access control.</p>
     
     <form method="post" action="">
@@ -33,101 +38,44 @@ if (isset($_POST['submit_device_settings'])) {
         
         <table class="form-table">
             <tr>
-                <th scope="row">
-                    <label for="identification_method">Identification Method</label>
-                </th>
+                <th scope="row">Device Locking</th>
                 <td>
-                    <select name="identification_method" id="identification_method">
-                        <option value="session_based" <?php selected($settings['identification_method'], 'session_based'); ?>>
-                            Session-Based (Recommended)
-                        </option>
-                        <option value="ip_address" <?php selected($settings['identification_method'], 'ip_address'); ?>>
-                            IP Address (Legacy)
-                        </option>
-                        <option value="fingerprint" <?php selected($settings['identification_method'], 'fingerprint'); ?>>
-                            Device Fingerprint (Future)
-                        </option>
-                        <option value="custom_token" <?php selected($settings['identification_method'], 'custom_token'); ?>>
-                            Custom Token (Future)
-                        </option>
-                        <option value="hybrid" <?php selected($settings['identification_method'], 'hybrid'); ?>>
-                            Hybrid (Multiple Methods)
-                        </option>
-                    </select>
-                    <p class="description">
-                        <strong>Session-Based (Recommended):</strong> Uses unique session IDs for device identification. Prevents link sharing and provides real-time revocation.<br>
-                        <strong>IP Address (Legacy):</strong> Uses IP address for identification. Less reliable due to IP changes.
+                    <p>
+                        Access is locked to the <strong>browser session</strong> that activated the magic link.
+                        The <code>lem_session_id</code> cookie is <code>HttpOnly</code> — JavaScript cannot read
+                        or copy it, so it cannot be shared between browsers or devices.
                     </p>
+                    <p class="description">
+                        If a viewer opens their magic link on a second device, the first session is
+                        automatically revoked and they must request a new link to regain access.
+                        No IP address tracking is used.
+                    </p>
+                    <!-- Hidden field keeps the value consistent for any code still reading it -->
+                    <input type="hidden" name="identification_method" value="session_based">
                 </td>
             </tr>
-            
+
             <tr>
-                <th scope="row">Security Level</th>
+                <th scope="row">Max Devices Per Ticket</th>
                 <td>
-                    <fieldset>
-                        <label>
-                            <input type="checkbox" name="strict_mode" value="1" 
-                                   <?php checked($settings['strict_mode']); ?>>
-                            Strict Mode
-                        </label>
-                        <p class="description">
-                            When enabled, requires exact device match. When disabled, allows fuzzy matching (e.g., same subnet for IP).
-                        </p>
-                    </fieldset>
-                </td>
-            </tr>
-            
-            <tr>
-                <th scope="row">Fallback Options</th>
-                <td>
-                    <fieldset>
-                        <label>
-                            <input type="checkbox" name="ip_fallback_enabled" value="1" 
-                                   <?php checked($settings['ip_fallback_enabled']); ?>>
-                            Enable IP Fallback
-                        </label>
-                        <p class="description">
-                            When session-based identification fails, fall back to IP address for backward compatibility.
-                        </p>
-                        
-                        <br>
-                        
-                        <label>
-                            <input type="checkbox" name="session_fallback_enabled" value="1" 
-                                   <?php checked($settings['session_fallback_enabled'] ?? false); ?>>
-                            Enable Session Fallback
-                        </label>
-                        <p class="description">
-                            When IP-based identification fails, fall back to session-based identification.
-                        </p>
-                    </fieldset>
-                </td>
-            </tr>
-            
-            <tr>
-                <th scope="row">Future Features</th>
-                <td>
-                    <fieldset>
-                        <label>
-                            <input type="checkbox" name="fingerprint_enabled" value="1" 
-                                   <?php checked($settings['fingerprint_enabled']); ?> disabled>
-                            Enable Fingerprint Support
-                        </label>
-                        <p class="description">
-                            <em>Coming soon:</em> Device fingerprinting for privacy-focused identification.
-                        </p>
-                        
-                        <br>
-                        
-                        <label>
-                            <input type="checkbox" name="custom_token_enabled" value="1" 
-                                   <?php checked($settings['custom_token_enabled']); ?> disabled>
-                            Enable Custom Token Support
-                        </label>
-                        <p class="description">
-                            <em>Coming soon:</em> Custom device tokens for advanced device management.
-                        </p>
-                    </fieldset>
+                    <input
+                        type="number"
+                        name="max_devices"
+                        id="max_devices"
+                        value="<?php echo esc_attr((int)($settings['max_devices'] ?? get_option('lem_device_settings', [])['max_devices'] ?? 1)); ?>"
+                        min="1"
+                        max="20"
+                        step="1"
+                        style="width:80px;"
+                    >
+                    <p class="description">
+                        How many devices (browser sessions) may watch simultaneously with the same ticket.<br>
+                        <strong>1 (default):</strong> strict one-device mode — using a new magic link on a second
+                        device immediately revokes the first.<br>
+                        <strong>2–5:</strong> useful for households where family members watch on separate screens.<br>
+                        When the limit is reached, the oldest device is automatically logged out to make room for
+                        the newest one.
+                    </p>
                 </td>
             </tr>
         </table>
@@ -144,18 +92,13 @@ if (isset($_POST['submit_device_settings'])) {
             <tbody>
                 <tr>
                     <td><strong>Active Method</strong></td>
-                    <td><?php echo ucfirst(str_replace('_', ' ', $settings['identification_method'])); ?></td>
-                    <td>Currently used identification method</td>
+                    <td><?php echo ucfirst(str_replace('_', ' ', $settings['identification_method'] ?? 'session_based')); ?></td>
+                    <td>Session cookie (HttpOnly) — JavaScript cannot read or share it</td>
                 </tr>
                 <tr>
-                    <td><strong>Security Level</strong></td>
-                    <td><?php echo $settings['strict_mode'] ? 'Strict' : 'Fuzzy'; ?></td>
-                    <td>How strictly devices must match</td>
-                </tr>
-                <tr>
-                    <td><strong>IP Fallback</strong></td>
-                    <td><?php echo $settings['ip_fallback_enabled'] ? 'Enabled' : 'Disabled'; ?></td>
-                    <td>Fallback to IP when primary method fails</td>
+                    <td><strong>Max Devices</strong></td>
+                    <td><?php echo (int)(get_option('lem_device_settings', [])['max_devices'] ?? 1); ?></td>
+                    <td>Simultaneous active sessions allowed per ticket</td>
                 </tr>
             </tbody>
         </table>
@@ -187,20 +130,3 @@ if (isset($_POST['submit_device_settings'])) {
     </form>
 </div>
 
-<script>
-jQuery(document).ready(function($) {
-    // Show/hide options based on selected method
-    $('#identification_method').on('change', function() {
-        var method = $(this).val();
-        
-        // Show relevant options based on method
-        if (method === 'hybrid') {
-            $('input[name="fingerprint_enabled"]').prop('disabled', false);
-            $('input[name="custom_token_enabled"]').prop('disabled', false);
-        } else {
-            $('input[name="fingerprint_enabled"]').prop('disabled', true);
-            $('input[name="custom_token_enabled"]').prop('disabled', true);
-        }
-    });
-});
-</script> 

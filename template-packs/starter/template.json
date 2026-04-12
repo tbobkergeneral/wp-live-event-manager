@@ -1,0 +1,9 @@
+{
+  "name":        "Starter Template",
+  "slug":        "starter",
+  "version":     "1.0.0",
+  "description": "A minimal, fully-annotated starting point for building custom LEM templates. Copy and rename this folder to begin.",
+  "author":      "LEM",
+  "author_url":  "https://simulcast.stream",
+  "type":        ["event_page", "paywall"]
+}

@@ -14,35 +14,27 @@ jQuery(document).ready(function($) {
         var streamId = $option.attr('data-stream-id');
         var provider = $option.attr('data-provider') || 'mux';
         
-        console.log('Stream selected:', { playbackId: playbackId, streamId: streamId, provider: provider, selectedValue: selectedValue });
-        
         // Always populate live stream ID if available
         if (streamId && streamId !== '') {
             $('#lem_live_stream_id').val(streamId);
-            console.log('Live Stream ID set to:', streamId);
         } else if (selectedValue) {
             // Fallback: use the selected value as stream ID
             $('#lem_live_stream_id').val(selectedValue);
-            console.log('Live Stream ID set to selected value:', selectedValue);
         }
-        
+
         // Set provider
         $('#lem_stream_provider').val(provider);
         $('#lem-provider-display').text(provider.toUpperCase());
-        console.log('Stream Provider set to:', provider);
-        
+
         // Update labels based on provider
         updateProviderLabels(provider);
-        
+
         // Populate playback ID if available and not 'N/A'
         if (playbackId && playbackId !== 'N/A' && playbackId !== '') {
             $('#lem_playback_id').val(playbackId);
-            console.log('Playback ID set to:', playbackId);
         } else {
             // If playback ID is not in the dropdown, try to fetch it from the stream
             if (provider === 'mux') {
-                // If playback ID is not in the dropdown, try to fetch it from the stream
-                console.log('Playback ID not in dropdown, attempting to fetch from stream...');
                 if (streamId || selectedValue) {
                     var streamIdToFetch = streamId || selectedValue;
                     // Fetch stream details to get playback ID
@@ -60,12 +52,11 @@ jQuery(document).ready(function($) {
                                 if (playbackIds.length > 0) {
                                     var fetchedPlaybackId = playbackIds[0].id || playbackIds[0];
                                     $('#lem_playback_id').val(fetchedPlaybackId);
-                                    console.log('Playback ID fetched and set to:', fetchedPlaybackId);
                                 }
                             }
                         },
-                        error: function(xhr, status, error) {
-                            console.log('Could not fetch playback ID:', error);
+                        error: function() {
+                            // Playback ID fetch failed — admin can enter it manually.
                         }
                     });
                 }
@@ -124,14 +115,17 @@ jQuery(document).ready(function($) {
         '</style>');
     }
     
+    // HTML escape helper
+    function escHtml(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
     // Helper function to show notifications
     function showNotification(message, type = 'info') {
         // Remove existing notifications
         $('.lem-notification').remove();
-        
+
         var notification = $('<div class="lem-notification ' + type + '">' +
             '<span class="close">&times;</span>' +
-            '<span class="message">' + message + '</span>' +
+            '<span class="message">' + escHtml(message) + '</span>' +
         '</div>');
         
         $('body').append(notification);
@@ -242,7 +236,7 @@ jQuery(document).ready(function($) {
                     response.data.forEach(function(restriction) {
                         var domains = restriction.referrer.allowed_domains.join(', ');
                         var optionText = restriction.id + ' (' + domains + ')';
-                        var $option = $('<option value="' + restriction.id + '">' + optionText + '</option>');
+                        var $option = $('<option></option>').val(restriction.id).text(optionText);
                         
                         // Mark as selected if it matches the current value
                         if (restriction.id === currentValue) {

@@ -306,9 +306,9 @@ if ($live_stream_id && $live_event_manager) {
 
 <script>
 jQuery(document).ready(function($) {
-    var nonce = '<?php echo wp_create_nonce('lem_stream_setup_nonce'); ?>';
-    var streamId = '<?php echo esc_js($live_stream_id); ?>';
-    var ajaxUrl = '<?php echo admin_url('admin-ajax.php'); ?>';
+    var nonce = <?php echo wp_json_encode(wp_create_nonce('lem_stream_setup_nonce')); ?>;
+    var streamId = <?php echo wp_json_encode($live_stream_id); ?>;
+    var ajaxUrl = <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>;
     
     // Copy buttons
     $('.lem-copy-btn').on('click', function() {

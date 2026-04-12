@@ -21,8 +21,8 @@ $muted = $attributes['muted'] ?? false;
 $theme = $attributes['theme'] ?? 'dark';
 
 // Get session ID or JWT from URL, or check cookie
-$session_id = $_GET['session'] ?? $_COOKIE['lem_session_id'] ?? '';
-$jwt_token = $_GET['token'] ?? '';
+$session_id = sanitize_text_field($_GET['session'] ?? $_COOKIE['lem_session_id'] ?? '');
+$jwt_token = sanitize_text_field($_GET['token'] ?? '');
 $is_valid = false;
 $event_data = null;
 $error_message = '';
@@ -147,7 +147,7 @@ $show_video = $is_valid && $event_data && !empty($event_data->playback_id);
             <div class="lem-device-actions">
                 <h3>Device Management</h3>
                 <p>Need to watch on a different device?</p>
-                <a href="<?php echo home_url('/device-swap?event_id=' . $event_data->event_id); ?>" class="lem-switch-device-btn">
+                <a href="<?php echo esc_url(home_url('/device-swap?event_id=' . $event_data->event_id)); ?>" class="lem-switch-device-btn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
                         <line x1="8" y1="21" x2="16" y2="21"></line>

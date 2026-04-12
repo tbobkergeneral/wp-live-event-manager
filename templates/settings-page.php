@@ -1,376 +1,559 @@
-<div class="wrap">
-    <h1>Live Event Manager Settings</h1>
-    
-    <?php
-    $settings = get_option('lem_settings', array());
+<?php
+/**
+ * Live Event Manager – Settings Page
+ *
+ * Tabs: Streaming | Payments | Cache & Access | Device
+ */
+if (!defined('ABSPATH')) exit;
 
-    if (isset($_POST['submit'])) {
-        $updated_settings = $settings;
+$settings        = get_option('lem_settings', []);
+$device_settings = get_option('lem_device_settings', ['identification_method' => 'session_based']);
 
-        // Stripe settings
-        $updated_settings['stripe_mode'] = sanitize_text_field($_POST['stripe_mode']);
-        $updated_settings['stripe_test_publishable_key'] = sanitize_text_field($_POST['stripe_test_publishable_key']);
-        $updated_settings['stripe_test_secret_key'] = sanitize_text_field($_POST['stripe_test_secret_key']);
-        $updated_settings['stripe_test_webhook_secret'] = sanitize_text_field($_POST['stripe_test_webhook_secret']);
-        $updated_settings['stripe_live_publishable_key'] = sanitize_text_field($_POST['stripe_live_publishable_key']);
-        $updated_settings['stripe_live_secret_key'] = sanitize_text_field($_POST['stripe_live_secret_key']);
-        $updated_settings['stripe_live_webhook_secret'] = sanitize_text_field($_POST['stripe_live_webhook_secret']);
-        $updated_settings['use_redis'] = isset($_POST['use_redis']) ? 1 : 0;
-        $updated_settings['redis_host'] = sanitize_text_field($_POST['redis_host'] ?? '127.0.0.1');
-        $updated_settings['redis_port'] = intval($_POST['redis_port'] ?? 6379);
-        $updated_settings['redis_password'] = sanitize_text_field($_POST['redis_password'] ?? '');
-        $updated_settings['redis_database'] = intval($_POST['redis_database'] ?? 0);
-        // JWT settings are now managed in JWT Manager page
-        $updated_settings['debug_mode'] = intval($_POST['debug_mode'] ?? 0);
+// ── Save handler ─────────────────────────────────────────────────────────────
+if (!current_user_can('manage_options')) { wp_die('Unauthorized'); }
+if (isset($_POST['lem_settings_nonce']) && wp_verify_nonce($_POST['lem_settings_nonce'], 'lem_save_settings')) {
 
-        update_option('lem_settings', $updated_settings);
-        $settings = $updated_settings;
+    $saved_tab = sanitize_text_field($_POST['tab'] ?? 'streaming');
 
-        echo '<div class="notice notice-success"><p>Settings saved successfully!</p></div>';
+    if ($saved_tab === 'streaming') {
+        $settings['streaming_provider'] = sanitize_text_field($_POST['streaming_provider'] ?? 'mux');
     }
+
+    if ($saved_tab === 'payments') {
+        $settings['stripe_mode']                 = sanitize_text_field($_POST['stripe_mode'] ?? 'test');
+        $settings['stripe_test_publishable_key'] = sanitize_text_field($_POST['stripe_test_publishable_key']  ?? '');
+        $settings['stripe_test_secret_key']      = sanitize_text_field($_POST['stripe_test_secret_key']       ?? '');
+        $settings['stripe_test_webhook_secret']  = sanitize_text_field($_POST['stripe_test_webhook_secret']   ?? '');
+        $settings['stripe_live_publishable_key'] = sanitize_text_field($_POST['stripe_live_publishable_key']  ?? '');
+        $settings['stripe_live_secret_key']      = sanitize_text_field($_POST['stripe_live_secret_key']       ?? '');
+        $settings['stripe_live_webhook_secret']  = sanitize_text_field($_POST['stripe_live_webhook_secret']   ?? '');
+    }
+
+    if ($saved_tab === 'cache') {
+        $settings['upstash_redis_url']            = sanitize_text_field($_POST['upstash_redis_url']   ?? '');
+        $settings['upstash_redis_token']          = sanitize_text_field($_POST['upstash_redis_token'] ?? '');
+        $settings['jwt_expiration_hours']         = max(1, intval($_POST['jwt_expiration_hours']      ?? 24));
+        $settings['jwt_refresh_duration_minutes'] = max(1, intval($_POST['jwt_refresh_duration_minutes'] ?? 15));
+        $settings['debug_mode']                   = isset($_POST['debug_mode']) ? 1 : 0;
+
+        if (class_exists('LEM_Cache')) {
+            LEM_Cache::reset();
+        }
+    }
+
+    if ($saved_tab === 'device') {
+        $device_settings['identification_method'] = sanitize_text_field($_POST['identification_method'] ?? 'session_based');
+        update_option('lem_device_settings', $device_settings);
+    }
+
+    if ($saved_tab === 'chat') {
+        $settings['ably_api_key'] = sanitize_text_field($_POST['ably_api_key'] ?? '');
+    }
+
+    update_option('lem_settings', $settings);
+
+    echo '<div class="notice notice-success is-dismissible"><p><strong>Settings saved.</strong></p></div>';
+}
+
+// ── Active tab ────────────────────────────────────────────────────────────────
+$active_tab = sanitize_text_field($_GET['tab'] ?? 'streaming');
+$tabs = [
+    'streaming' => 'Streaming',
+    'payments'  => 'Payments',
+    'cache'     => 'Cache & Access',
+    'device'    => 'Device',
+    'chat'      => 'Chat',
+];
+
+// ── Webhook URLs ──────────────────────────────────────────────────────────────
+$stripe_webhook_url = admin_url('admin-ajax.php?action=lem_stripe_webhook');
+$mux_webhook_url    = admin_url('admin-ajax.php?action=lem_mux_webhook');
+$jwt_status_url     = get_rest_url(null, 'lem/v1/check-jwt-status');
+?>
+
+<div class="wrap lem-settings-wrap">
+    <h1>Live Event Manager – Settings</h1>
+
+    <?php
+    // Show Upstash config warning if on a non-cache tab and not configured.
+    if ($active_tab !== 'cache' && class_exists('LEM_Cache') && !LEM_Cache::is_configured()):
     ?>
-    
-    <div class="notice notice-info inline">
-        <p><strong>Streaming Provider Settings:</strong> Mux configuration has been moved to <a href="<?php echo admin_url('edit.php?post_type=lem_event&page=live-event-manager-stream-vendors'); ?>">Stream Vendors</a> page. Additional providers can be added in the future.</p>
+    <div class="notice notice-warning inline">
+        <p>
+            <strong>Upstash Redis is not configured.</strong>
+            JWT sessions and caching will not work until you add your credentials on the
+            <a href="<?php echo esc_url(add_query_arg('tab', 'cache')); ?>">Cache &amp; Access</a> tab.
+        </p>
     </div>
-    
+    <?php endif; ?>
+
+    <?php /* Tab navigation */ ?>
+    <nav class="nav-tab-wrapper">
+        <?php foreach ($tabs as $slug => $label):
+            $url = add_query_arg(['page' => 'live-event-manager-settings', 'tab' => $slug], admin_url('edit.php?post_type=lem_event'));
+        ?>
+        <a href="<?php echo esc_url($url); ?>"
+           class="nav-tab <?php echo $active_tab === $slug ? 'nav-tab-active' : ''; ?>">
+            <?php echo esc_html($label); ?>
+        </a>
+        <?php endforeach; ?>
+    </nav>
+
     <form method="post" action="">
-        <h2>Stripe Configuration</h2>
+        <?php wp_nonce_field('lem_save_settings', 'lem_settings_nonce'); ?>
+        <input type="hidden" name="tab" value="<?php echo esc_attr($active_tab); ?>">
+
+        <?php /* ═══ STREAMING ══════════════════════════════════════════════ */ ?>
+        <?php if ($active_tab === 'streaming'):
+            $factory            = LEM_Streaming_Provider_Factory::get_instance();
+            $all_providers      = [];
+            foreach ($factory->get_available_providers() as $pid) {
+                $all_providers[$pid] = $factory->get_provider_name($pid);
+            }
+            $active_pid      = $settings['streaming_provider'] ?? 'mux';
+            $active_provider = $factory->get_provider($active_pid);
+            $vendors_url     = admin_url('edit.php?post_type=lem_event&page=live-event-manager-stream-vendors');
+        ?>
+
+        <h2>Streaming Provider</h2>
         <table class="form-table">
             <tr>
-                <th scope="row">
-                    <label for="stripe_mode">Stripe Mode</label>
-                </th>
+                <th><label for="streaming_provider">Active Provider</label></th>
+                <td>
+                    <select id="streaming_provider" name="streaming_provider">
+                        <?php foreach ($all_providers as $pid => $pname): ?>
+                        <option value="<?php echo esc_attr($pid); ?>" <?php selected($active_pid, $pid); ?>>
+                            <?php echo esc_html($pname); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if ($active_provider): ?>
+                    <span style="margin-left:12px;">
+                        <?php if ($active_provider->is_configured()): ?>
+                            <span style="color:#46b450;">&#10003; Configured</span>
+                        <?php else: ?>
+                            <span style="color:#d63638;">&#10007; Credentials missing</span>
+                        <?php endif; ?>
+                    </span>
+                    <?php endif; ?>
+                    <p class="description">
+                        Credentials and API keys are configured on the
+                        <a href="<?php echo esc_url($vendors_url); ?>">Vendors</a> page.
+                    </p>
+                </td>
+            </tr>
+        </table>
+
+        <p>
+            <a href="<?php echo esc_url($vendors_url); ?>" class="button">
+                Configure <?php echo esc_html($all_providers[$active_pid] ?? $active_pid); ?> credentials &rarr;
+            </a>
+        </p>
+
+        <?php endif; ?>
+
+        <?php /* ═══ PAYMENTS ════════════════════════════════════════════════ */ ?>
+        <?php if ($active_tab === 'payments'): ?>
+        <h2>Stripe Payments</h2>
+        <table class="form-table">
+            <tr>
+                <th><label for="stripe_mode">Mode</label></th>
                 <td>
                     <select id="stripe_mode" name="stripe_mode">
-                        <option value="test" <?php selected($settings['stripe_mode'] ?? 'test', 'test'); ?>>Test Mode</option>
-                        <option value="live" <?php selected($settings['stripe_mode'] ?? 'test', 'live'); ?>>Live Mode</option>
+                        <option value="test" <?php selected($settings['stripe_mode'] ?? 'test', 'test'); ?>>Test</option>
+                        <option value="live" <?php selected($settings['stripe_mode'] ?? 'test', 'live'); ?>>Live</option>
                     </select>
-                    <p class="description">
-                        Select whether to use Stripe test or live environment.
-                    </p>
                 </td>
             </tr>
         </table>
-        
-        <div class="lem-stripe-tabs">
-            <div class="lem-tab-nav">
-                <button type="button" class="lem-tab-button active" data-tab="test">Test Environment</button>
-                <button type="button" class="lem-tab-button" data-tab="live">Live Environment</button>
-            </div>
-            
-            <div id="test-tab" class="lem-tab-content active">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_test_publishable_key">Test Publishable Key</label>
-                        </th>
-                        <td>
-                            <input type="text" id="stripe_test_publishable_key" name="stripe_test_publishable_key" 
-                                   value="<?php echo esc_attr($settings['stripe_test_publishable_key'] ?? ''); ?>" 
-                                   class="regular-text">
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_test_secret_key">Test Secret Key</label>
-                        </th>
-                        <td>
-                            <input type="password" id="stripe_test_secret_key" name="stripe_test_secret_key" 
-                                   value="<?php echo esc_attr($settings['stripe_test_secret_key'] ?? ''); ?>" 
-                                   class="regular-text">
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_test_webhook_secret">Test Webhook Secret</label>
-                        </th>
-                        <td>
-                            <input type="password" id="stripe_test_webhook_secret" name="stripe_test_webhook_secret" 
-                                   value="<?php echo esc_attr($settings['stripe_test_webhook_secret'] ?? ''); ?>" 
-                                   class="regular-text">
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            
-            <div id="live-tab" class="lem-tab-content">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_live_publishable_key">Live Publishable Key</label>
-                        </th>
-                        <td>
-                            <input type="text" id="stripe_live_publishable_key" name="stripe_live_publishable_key" 
-                                   value="<?php echo esc_attr($settings['stripe_live_publishable_key'] ?? ''); ?>" 
-                                   class="regular-text">
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_live_secret_key">Live Secret Key</label>
-                        </th>
-                        <td>
-                            <input type="password" id="stripe_live_secret_key" name="stripe_live_secret_key" 
-                                   value="<?php echo esc_attr($settings['stripe_live_secret_key'] ?? ''); ?>" 
-                                   class="regular-text">
-                        </td>
-                    </tr>
-                    
-                    <tr>
-                        <th scope="row">
-                            <label for="stripe_live_webhook_secret">Live Webhook Secret</label>
-                        </th>
-                        <td>
-                            <input type="password" id="stripe_live_webhook_secret" name="stripe_live_webhook_secret" 
-                                   value="<?php echo esc_attr($settings['stripe_live_webhook_secret'] ?? ''); ?>" 
-                                   class="regular-text">
-                        </td>
-                    </tr>
-                </table>
-            </div>
+
+        <div class="lem-tab-nav" style="margin-top:16px;">
+            <button type="button" class="lem-tab-button <?php echo ($settings['stripe_mode'] ?? 'test') !== 'live' ? 'active' : ''; ?>" data-tab="stripe-test">Test Keys</button>
+            <button type="button" class="lem-tab-button <?php echo ($settings['stripe_mode'] ?? 'test') === 'live' ? 'active' : ''; ?>" data-tab="stripe-live">Live Keys</button>
         </div>
-        
-        <h2>Redis Configuration</h2>
+
+        <div id="stripe-test" class="lem-tab-content <?php echo ($settings['stripe_mode'] ?? 'test') !== 'live' ? 'active' : ''; ?>">
+            <table class="form-table">
+                <tr>
+                    <th><label for="stripe_test_publishable_key">Test Publishable Key</label></th>
+                    <td><input type="text" id="stripe_test_publishable_key" name="stripe_test_publishable_key"
+                               value="<?php echo esc_attr($settings['stripe_test_publishable_key'] ?? ''); ?>" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th><label for="stripe_test_secret_key">Test Secret Key</label></th>
+                    <td><input type="password" id="stripe_test_secret_key" name="stripe_test_secret_key"
+                               value="<?php echo esc_attr($settings['stripe_test_secret_key'] ?? ''); ?>" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th><label for="stripe_test_webhook_secret">Test Webhook Secret</label></th>
+                    <td><input type="password" id="stripe_test_webhook_secret" name="stripe_test_webhook_secret"
+                               value="<?php echo esc_attr($settings['stripe_test_webhook_secret'] ?? ''); ?>" class="regular-text"></td>
+                </tr>
+            </table>
+        </div>
+
+        <div id="stripe-live" class="lem-tab-content <?php echo ($settings['stripe_mode'] ?? 'test') === 'live' ? 'active' : ''; ?>">
+            <table class="form-table">
+                <tr>
+                    <th><label for="stripe_live_publishable_key">Live Publishable Key</label></th>
+                    <td><input type="text" id="stripe_live_publishable_key" name="stripe_live_publishable_key"
+                               value="<?php echo esc_attr($settings['stripe_live_publishable_key'] ?? ''); ?>" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th><label for="stripe_live_secret_key">Live Secret Key</label></th>
+                    <td><input type="password" id="stripe_live_secret_key" name="stripe_live_secret_key"
+                               value="<?php echo esc_attr($settings['stripe_live_secret_key'] ?? ''); ?>" class="regular-text"></td>
+                </tr>
+                <tr>
+                    <th><label for="stripe_live_webhook_secret">Live Webhook Secret</label></th>
+                    <td><input type="password" id="stripe_live_webhook_secret" name="stripe_live_webhook_secret"
+                               value="<?php echo esc_attr($settings['stripe_live_webhook_secret'] ?? ''); ?>" class="regular-text"></td>
+                </tr>
+            </table>
+        </div>
+
+        <h3>Stripe Webhook URL</h3>
+        <p>Add this URL in your <a href="https://dashboard.stripe.com/webhooks" target="_blank">Stripe Dashboard → Webhooks</a>:</p>
+        <code><?php echo esc_url($stripe_webhook_url); ?></code>
+        <p class="description">Listen for: <code>checkout.session.completed</code></p>
+
+        <?php endif; ?>
+
+        <?php /* ═══ CACHE & ACCESS ══════════════════════════════════════════ */ ?>
+        <?php if ($active_tab === 'cache'): ?>
+        <h2>Upstash Redis</h2>
+        <p>
+            Create a free database at <a href="https://upstash.com" target="_blank">upstash.com</a>
+            then paste the REST URL and token below.
+            Upstash works over HTTPS so no server extension is needed.
+        </p>
+
+        <?php if (class_exists('LEM_Cache') && LEM_Cache::is_configured()): ?>
+        <div class="notice notice-success inline" style="margin:0 0 16px;">
+            <p>Upstash is configured and ready.</p>
+        </div>
+        <?php else: ?>
+        <div class="notice notice-warning inline" style="margin:0 0 16px;">
+            <p><strong>Not configured.</strong> JWT sessions will not work until you add your Upstash credentials.</p>
+        </div>
+        <?php endif; ?>
+
         <table class="form-table">
             <tr>
-                <th scope="row">
-                    <label for="use_redis">Enable Redis</label>
-                </th>
+                <th><label for="upstash_redis_url">REST URL</label></th>
                 <td>
-                    <label>
-                        <input type="checkbox" id="use_redis" name="use_redis" value="1" 
-                               <?php checked($settings['use_redis'] ?? 1, 1); ?>>
-                        Use Redis for JWT and event caching (recommended for production)
-                    </label>
-                    <p class="description">
-                        Redis provides fast access to JWT tokens and event data for edge playback.
-                    </p>
+                    <input type="text" id="upstash_redis_url" name="upstash_redis_url"
+                           value="<?php echo esc_attr($settings['upstash_redis_url'] ?? ''); ?>"
+                           class="regular-text" placeholder="https://xxxx.upstash.io">
+                    <p class="description">Found on your Upstash database page under <em>REST API</em>.</p>
                 </td>
             </tr>
-            
             <tr>
-                <th scope="row">
-                    <label for="redis_host">Redis Host</label>
-                </th>
+                <th><label for="upstash_redis_token">REST Token</label></th>
                 <td>
-                    <input type="text" id="redis_host" name="redis_host" 
-                           value="<?php echo esc_attr($settings['redis_host'] ?? '127.0.0.1'); ?>" 
+                    <input type="password" id="upstash_redis_token" name="upstash_redis_token"
+                           value="<?php echo esc_attr($settings['upstash_redis_token'] ?? ''); ?>"
                            class="regular-text">
-                    <p class="description">
-                        Redis server hostname or IP address.
-                    </p>
+                    <p class="description">The read-write token from your Upstash database page.</p>
                 </td>
             </tr>
-            
             <tr>
-                <th scope="row">
-                    <label for="redis_port">Redis Port</label>
-                </th>
+                <th>Test Connection</th>
                 <td>
-                    <input type="number" id="redis_port" name="redis_port" 
-                           value="<?php echo esc_attr($settings['redis_port'] ?? 6379); ?>" 
-                           class="small-text">
-                    <p class="description">
-                        Redis server port (default: 6379).
-                    </p>
+                    <button type="button" id="lem-test-upstash" class="button button-secondary">Test Upstash Connection</button>
+                    <span id="lem-upstash-test-result" style="margin-left:12px;"></span>
                 </td>
             </tr>
-            
+        </table>
+
+        <h2>Email Delivery</h2>
+        <table class="form-table">
             <tr>
-                <th scope="row">
-                    <label for="redis_password">Redis Password</label>
-                </th>
+                <th>Last send error</th>
                 <td>
-                    <input type="password" id="redis_password" name="redis_password" 
-                           value="<?php echo esc_attr($settings['redis_password'] ?? ''); ?>" 
-                           class="regular-text">
-                    <p class="description">
-                        Redis authentication password (leave empty if not required).
-                    </p>
+                    <?php
+                    $last_mail_error = get_transient('lem_last_mail_error');
+                    if ($last_mail_error): ?>
+                        <div class="notice notice-error inline" style="margin:0;padding:6px 12px;">
+                            <p style="margin:0;"><?php echo esc_html($last_mail_error); ?></p>
+                        </div>
+                        <p class="description" style="margin-top:6px;">
+                            This is the most recent <code>wp_mail()</code> failure captured by the plugin.
+                            Fix the error, then send a test email below to clear it.
+                        </p>
+                    <?php else: ?>
+                        <span style="color:#2cb191;">&#10003; No recent errors</span>
+                    <?php endif; ?>
                 </td>
             </tr>
-            
             <tr>
-                <th scope="row">
-                    <label for="redis_database">Redis Database</label>
-                </th>
+                <th>Test email</th>
                 <td>
-                    <input type="number" id="redis_database" name="redis_database" 
-                           value="<?php echo esc_attr($settings['redis_database'] ?? 0); ?>" 
-                           class="small-text" min="0" max="15">
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <input type="email" id="lem-test-email-to" class="regular-text"
+                               placeholder="<?php echo esc_attr(wp_get_current_user()->user_email); ?>"
+                               value="<?php echo esc_attr(wp_get_current_user()->user_email); ?>">
+                        <button type="button" id="lem-test-email-btn" class="button button-secondary">Send test email</button>
+                    </div>
+                    <span id="lem-test-email-result" style="display:block;margin-top:8px;"></span>
                     <p class="description">
-                        Redis database number (0-15, default: 0).
-                    </p>
-                </td>
-            </tr>
-            
-            <tr>
-                <th scope="row">JWT Settings</th>
-                <td>
-                    <p class="description">
-                        JWT settings are now managed in the <a href="<?php echo admin_url('admin.php?page=lem-jwt-manager'); ?>">JWT Manager</a> page.
-                    </p>
-                </td>
-            </tr>
-            
-            <tr>
-                <th scope="row">Test Connection</th>
-                <td>
-                    <button type="button" id="lem-test-redis-settings" class="button button-secondary">Test Redis Connection</button>
-                    <span id="lem-redis-test-result"></span>
-                    <p class="description">
-                        Test the Redis connection with current settings.
+                        Sends a plain test message via <code>wp_mail()</code>.
+                        If Easy WP SMTP (or another mailer) is active, this tests its configuration.
+                        Make sure you have configured the SMTP credentials inside <strong>WP Admin → Easy WP SMTP → Settings</strong> — installing the plugin alone is not enough.
                     </p>
                 </td>
             </tr>
         </table>
-        
-        <h2>Debug Settings</h2>
+
+        <h2>JWT Settings</h2>
         <table class="form-table">
             <tr>
-                <th scope="row">
-                    <label for="debug_mode">Debug Mode</label>
-                </th>
+                <th><label for="jwt_expiration_hours">Token Lifetime (hours)</label></th>
+                <td>
+                    <input type="number" id="jwt_expiration_hours" name="jwt_expiration_hours"
+                           value="<?php echo esc_attr($settings['jwt_expiration_hours'] ?? 24); ?>"
+                           class="small-text" min="1" max="720">
+                    <p class="description">How long a viewer's access token is valid after initial sign-in. Default: 24 hours.</p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="jwt_refresh_duration_minutes">Refresh Token Lifetime (minutes)</label></th>
+                <td>
+                    <input type="number" id="jwt_refresh_duration_minutes" name="jwt_refresh_duration_minutes"
+                           value="<?php echo esc_attr($settings['jwt_refresh_duration_minutes'] ?? 15); ?>"
+                           class="small-text" min="1" max="60">
+                    <p class="description">Short-lived JWT issued on refresh. Default: 15 minutes.</p>
+                </td>
+            </tr>
+        </table>
+
+        <h2>Debug</h2>
+        <table class="form-table">
+            <tr>
+                <th><label for="debug_mode">Debug Logging</label></th>
                 <td>
                     <label>
-                        <input type="checkbox" id="debug_mode" name="debug_mode" value="1" 
+                        <input type="checkbox" id="debug_mode" name="debug_mode" value="1"
                                <?php checked($settings['debug_mode'] ?? 0, 1); ?>>
-                        Enable debug logging
+                        Write detailed logs to <code>wp-content/debug.log</code>
                     </label>
+                </td>
+            </tr>
+        </table>
+
+        <h2>Endpoint Reference</h2>
+        <table class="form-table">
+            <tr>
+                <th>JWT Status (REST)</th>
+                <td><code><?php echo esc_url($jwt_status_url); ?></code> — POST</td>
+            </tr>
+            <tr>
+                <th>Stripe Webhook</th>
+                <td><code><?php echo esc_url($stripe_webhook_url); ?></code></td>
+            </tr>
+            <tr>
+                <th>Mux Webhook</th>
+                <td><code><?php echo esc_url($mux_webhook_url); ?></code></td>
+            </tr>
+        </table>
+
+        <?php endif; ?>
+
+        <?php /* ═══ CHAT ════════════════════════════════════════════════════ */ ?>
+        <?php if ($active_tab === 'chat'):
+            $ably_key     = $settings['ably_api_key'] ?? '';
+            $ably_ok      = !empty($ably_key) && strpos($ably_key, ':') !== false;
+            $ably_doc_url = 'https://ably.com/docs/auth/basic';
+        ?>
+        <h2>Ably Live Chat</h2>
+        <p>
+            Live chat is powered by <a href="https://ably.com" target="_blank">Ably</a>.
+            Create a free account, copy your <strong>API key</strong> from the Ably dashboard,
+            and paste it below. Viewers receive short-lived capability-scoped tokens — your
+            API key is never exposed to the browser.
+            <a href="<?php echo esc_url($ably_doc_url); ?>" target="_blank">Learn more &rarr;</a>
+        </p>
+
+        <?php if ($ably_ok): ?>
+        <div class="notice notice-success inline" style="margin:0 0 16px;">
+            <p>Ably is configured. Live chat will be enabled on watch pages.</p>
+        </div>
+        <?php else: ?>
+        <div class="notice notice-warning inline" style="margin:0 0 16px;">
+            <p><strong>Not configured.</strong> Chat will be hidden until you add your Ably API key.</p>
+        </div>
+        <?php endif; ?>
+
+        <table class="form-table">
+            <tr>
+                <th><label for="ably_api_key">Ably API Key</label></th>
+                <td>
+                    <input type="password" id="ably_api_key" name="ably_api_key"
+                           value="<?php echo esc_attr($ably_key); ?>"
+                           class="regular-text"
+                           placeholder="xxxxxxxx.yyyyyy:zzzzzzzzzzzzzzz"
+                           autocomplete="new-password">
                     <p class="description">
-                        When enabled, detailed debug information will be logged to wp-content/debug.log
+                        Format: <code>APP_ID.KEY_ID:KEY_SECRET</code> — found in
+                        <strong>Ably Dashboard &rarr; API Keys</strong>.
+                        Use a key with <em>Subscribe</em>, <em>Publish</em>, and <em>Presence</em>
+                        capabilities only (not the root key).
                     </p>
                 </td>
             </tr>
         </table>
-        
 
-        
-        <h2>Webhook URLs</h2>
-        <p>Configure these URLs in your Stripe webhook settings:</p>
-        
-        <h3>Test Environment</h3>
-        <p>Use this URL for test webhooks in Stripe Dashboard:</p>
-        <code><?php echo admin_url('admin-ajax.php?action=lem_stripe_webhook'); ?></code>
-        
-        <h3>Live Environment</h3>
-        <p>Use this URL for live webhooks in Stripe Dashboard:</p>
-        <code><?php echo admin_url('admin-ajax.php?action=lem_stripe_webhook'); ?></code>
-        
-        <h2>Required Events</h2>
-        <p>Make sure to listen for these Stripe events:</p>
-        <ul>
-            <li><code>checkout.session.completed</code> - Triggers JWT generation and email sending</li>
-        </ul>
-        
+        <h3>How It Works</h3>
+        <ol>
+            <li>Viewer loads watch page &rarr; plugin issues a short-lived Ably token (1 hour) scoped to <code>lem:chat:{event_id}</code>.</li>
+            <li>The token is issued only to viewers whose session cookie has been validated — paywalled events stay paywalled.</li>
+            <li>Messages are broadcast in real-time via Ably channels; history rewinds 2 minutes on join.</li>
+        </ol>
 
-        
-        <h2>Cloudflare Worker Endpoint</h2>
-        <p>For JWT status checking from Cloudflare Worker:</p>
-        <code><?php echo get_rest_url(null, 'lem/v1/check-jwt-status'); ?></code>
-        <p>Method: POST</p>
-        <p>Parameters: email, ip, playback_id</p>
-        
+        <h3>Endpoint Reference</h3>
+        <table class="form-table">
+            <tr>
+                <th>Token auth URL</th>
+                <td>
+                    <code><?php echo esc_url(admin_url('admin-ajax.php') . '?action=lem_ably_token'); ?></code>
+                    <span class="description"> — POST, requires <code>nonce</code> + <code>event_id</code></span>
+                </td>
+            </tr>
+        </table>
+
+        <?php endif; ?>
+
+        <?php /* ═══ DEVICE ═══════════════════════════════════════════════════ */ ?>
+        <?php if ($active_tab === 'device'): ?>
+        <h2>Device Identification</h2>
+        <p>Controls how the plugin ties a viewer to their access session. <strong>Session-based</strong> is recommended for most sites.</p>
+        <table class="form-table">
+            <?php
+            $methods = [
+                'session_based'  => ['Session-based',  'One session cookie per browser. Simplest and most reliable.'],
+                'ip_address'     => ['IP Address',     'Ties access to the viewer\'s IP. Breaks for mobile users switching networks.'],
+                'fingerprint'    => ['Fingerprint',    'Browser fingerprint via JS. More persistent, but requires JS.'],
+                'custom_token'   => ['Custom Token',   'A custom token you provide. Useful for integrations.'],
+                'hybrid'         => ['Hybrid',         'Session primary, IP as fallback.'],
+            ];
+            $current_method = $device_settings['identification_method'] ?? 'session_based';
+            foreach ($methods as $value => [$label, $desc]):
+            ?>
+            <tr>
+                <th><?php echo esc_html($label); ?></th>
+                <td>
+                    <label>
+                        <input type="radio" name="identification_method"
+                               value="<?php echo esc_attr($value); ?>"
+                               <?php checked($current_method, $value); ?>>
+                        <?php echo esc_html($desc); ?>
+                    </label>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </table>
+        <?php endif; ?>
+
         <p class="submit">
-            <input type="submit" name="submit" id="submit" class="button button-primary" value="Save Settings">
+            <input type="submit" class="button button-primary" value="Save Settings">
         </p>
     </form>
 </div>
 
 <script>
 jQuery(document).ready(function($) {
-    // Handle mode selection
-    $('#stripe_mode').on('change', function() {
-        var mode = $(this).val();
-        if (mode === 'test') {
-            $('.lem-tab-button[data-tab="test"]').click();
-        } else {
-            $('.lem-tab-button[data-tab="live"]').click();
-        }
-    });
-    
-    // Handle tab switching
+    // HTML escape helper
+    function escHtml(s) { var d = document.createElement('div'); d.appendChild(document.createTextNode(s)); return d.innerHTML; }
+
+    // Stripe sub-tabs
     $('.lem-tab-button').on('click', function() {
         var tab = $(this).data('tab');
-        
-        // Update button states
         $('.lem-tab-button').removeClass('active');
         $(this).addClass('active');
-        
-        // Update tab content
         $('.lem-tab-content').removeClass('active');
-        $('#' + tab + '-tab').addClass('active');
+        $('#' + tab).addClass('active');
     });
-    
-    // Initialize based on current mode
-    var currentMode = $('#stripe_mode').val();
-    if (currentMode === 'live') {
-        $('.lem-tab-button[data-tab="live"]').click();
-    }
-    
-    // Redis test button
-    $('#lem-test-redis-settings').on('click', function() {
-        var button = $(this);
-        var result = $('#lem-redis-test-result');
-        
-        button.prop('disabled', true).text('Testing...');
-        result.html('');
-        
+
+    // Auto-switch Stripe sub-tab when mode changes
+    $('#stripe_mode').on('change', function() {
+        var mode = $(this).val();
+        $('.lem-tab-button[data-tab="stripe-' + mode + '"]').trigger('click');
+    });
+
+    // Test Upstash connection
+    $('#lem-test-upstash').on('click', function() {
+        var $btn    = $(this);
+        var $result = $('#lem-upstash-test-result');
+        $btn.prop('disabled', true).text('Testing…');
+        $result.html('');
+
         $.post(lem_ajax.ajax_url, {
-            action: 'lem_test_redis_connection',
-            nonce: lem_ajax.nonce,
-            use_redis: $('#use_redis').is(':checked') ? 1 : 0,
-            redis_host: $('#redis_host').val(),
-            redis_port: $('#redis_port').val(),
-            redis_password: $('#redis_password').val(),
-            redis_database: $('#redis_database').val()
+            action:               'lem_test_redis_connection',
+            nonce:                lem_ajax.nonce,
+            upstash_redis_url:   $('#upstash_redis_url').val(),
+            upstash_redis_token: $('#upstash_redis_token').val()
         }, function(response) {
             if (response.success) {
-                result.html('<span style="color: green;">✅ ' + response.data.message + '</span>');
+                $result.html('<span style="color:#46b450;">&#10003; ' + escHtml(response.data.message) + '</span>');
             } else {
-                result.html('<span style="color: red;">❌ ' + response.data + '</span>');
+                $result.html('<span style="color:#dc3232;">&#10007; ' + escHtml(response.data || 'Connection failed') + '</span>');
             }
         }).fail(function() {
-            result.html('<span style="color: red;">❌ Network error</span>');
+            $result.html('<span style="color:#dc3232;">&#10007; Network error</span>');
         }).always(function() {
-            button.prop('disabled', false).text('Test Redis Connection');
+            $btn.prop('disabled', false).text('Test Upstash Connection');
+        });
+    });
+
+    // Test email
+    $('#lem-test-email-btn').on('click', function() {
+        var $btn    = $(this);
+        var $result = $('#lem-test-email-result');
+        var to      = $('#lem-test-email-to').val().trim();
+        $btn.prop('disabled', true).text('Sending…');
+        $result.html('');
+
+        $.post(lem_ajax.ajax_url, {
+            action: 'lem_test_email',
+            nonce:  lem_ajax.nonce,
+            to:     to
+        }, function(response) {
+            if (response.success) {
+                $result.html('<span style="color:#46b450;">&#10003; ' + escHtml(response.data.message) + '</span>');
+            } else {
+                $result.html('<span style="color:#dc3232;">&#10007; ' + escHtml(response.data || 'Send failed') + '</span>');
+            }
+        }).fail(function() {
+            $result.html('<span style="color:#dc3232;">&#10007; Network error</span>');
+        }).always(function() {
+            $btn.prop('disabled', false).text('Send test email');
+        });
+    });
+
+    // Copy to clipboard helper
+    $('.lem-copy-btn').on('click', function() {
+        var target = $(this).data('target');
+        var text   = $(target).first().text();
+        navigator.clipboard.writeText(text).then(function() {
+            // brief visual feedback handled by CSS
         });
     });
 });
 </script>
 
 <style>
-.lem-stripe-tabs {
-    margin-top: 20px;
-}
-
-.lem-tab-nav {
-    margin-bottom: 20px;
-}
-
+.lem-settings-wrap .nav-tab-wrapper { margin-bottom: 24px; }
+.lem-tab-nav { margin: 12px 0 0; }
 .lem-tab-button {
-    padding: 10px 20px;
-    margin-right: 5px;
-    border: 1px solid #ccc;
-    background: #f1f1f1;
+    padding: 8px 18px;
+    margin-right: 4px;
+    border: 1px solid #c3c4c7;
+    background: #f0f0f1;
     cursor: pointer;
+    border-radius: 3px 3px 0 0;
 }
-
-.lem-tab-button.active {
-    background: #0073aa;
-    color: white;
-    border-color: #0073aa;
-}
-
-.lem-tab-content {
-    display: none;
-}
-
-.lem-tab-content.active {
-    display: block;
-}
-</style> 
+.lem-tab-button.active { background: #0073aa; color: #fff; border-color: #0073aa; }
+.lem-tab-content { display: none; border-top: 1px solid #c3c4c7; padding-top: 8px; }
+.lem-tab-content.active { display: block; }
+.lem-copy-field { display: inline-block; padding: 6px 10px; background: #f6f7f7; border: 1px solid #c3c4c7; border-radius: 3px; }
+</style>
