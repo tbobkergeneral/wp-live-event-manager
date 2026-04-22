@@ -1,86 +1,99 @@
 # Live Event Manager
 
-Secure, WordPress-native streaming paywall for live and on-demand events.  
-The plugin combines Stripe for checkout, pluggable streaming backends (**Mux** or self-hosted **OvenMediaEngine / OME**), and JWT-backed access control with Upstash Redis for sessions—while keeping the viewer workflow simple.
+WordPress plugin for a **secure streaming paywall**: Stripe checkout, pluggable streaming (**Mux** or self-hosted **OvenMediaEngine**), JWT access control, and **Upstash Redis** (HTTP) for sessions—without requiring `phpredis`.
 
-**Bundled version:** 1.1.0 (see `live-event-manager.php`).
+**Current release:** 1.1.0 (declared in `live-event-manager.php`).
 
-## Key Capabilities
+## License
 
-- **Entitlement-aware event pages** – Visitors with an active ticket see a “Watch Now” path; others get purchase or resend options.
-- **Streaming providers** – Choose an **active provider** in Settings: **Mux** (cloud, signed playback) or **OME** ([OvenMediaEngine](https://ovenmediaengine.com), self-hosted). Per-provider credentials live under **Live Events → Vendors**.
-- **Stripe checkout + webhooks** – Paid events mint playback tokens after payment confirmation; **Payments** lists recorded checkouts (Stripe session IDs, filters, CSV export).
-- **Playback security** – JWTs are scoped to the event and expire automatically; **Access Tokens** lists and revokes sessions; **Revoke access** records DB-level entitlement revocations checked across the stack.
-- **Upstash Redis (HTTP)** – Sessions, magic links, and related caches use the Upstash REST API (no `phpredis` requirement). The plugin shows an admin notice until URL + token are set; magic-link and session flows expect cache to be configured.
-- **Magic links + device rules** – One-time links, device identification, and email/code resend UI on confirmation, event, and watch surfaces.
-- **Optional Ably live chat** – With an Ably API key in Settings, watch pages can obtain short-lived chat tokens for realtime channels.
-- **Template packs** – Override front-end templates and assets without editing the plugin: upload ZIPs, activate a pack under **Live Events → Templates**, with files resolved from `wp-content/lem-templates/{slug}/` (bundled packs in `template-packs/` fill gaps after updates).
-- **Blocks & shortcode** – Block editor: **Event ticket** and **Gated video**; shortcode: `[simulcast_player]`.
-- **REST API (`lem/v1`)** – Admin-authenticated routes for live streams, RTMP info, simulcast targets, stream status, and JWT settings; **`POST /lem/v1/check-jwt-status`** supports edge revocation checks (e.g. Cloudflare Worker) using the token payload.
-- **Admin tools** – **Live Streams**, **Vendors**, **Access Tokens**, **Revoke access**, **Payments**, **Settings**, **Devices**, **Templates**, **User Guide**, and **Debug** (Stripe/Mux/Upstash tests, webhooks, logging).
+This project is licensed under the **GNU General Public License v2.0 or later**—the same license family as WordPress. See [`LICENSE`](LICENSE) for the full text.
+
+Bundled libraries (e.g. **firebase/php-jwt**, **stripe/stripe-php**) remain under their respective licenses in `vendor/`.
+
+## Features (overview)
+
+- Entitlement-aware event pages, magic links, device rules, optional **Ably** chat
+- **Mux** or **OME** as configurable streaming providers; vendor credentials under **Live Events → Vendors**
+- Stripe Checkout + webhooks; **Payments** screen with export
+- JWT issuance, **Access Tokens** / **Revoke access**, REST namespace `lem/v1` (including edge-oriented JWT checks)
+- Template packs (ZIP install, `wp-content/lem-templates/`), blocks and `[simulcast_player]` shortcode
+- Admin: streams, vendors, settings, devices, templates, user guide, debug tools
+
+For operator-focused setup steps and UI walkthrough, see **Live Events → User Guide** in wp-admin and [`docs/user-guide.md`](docs/user-guide.md) (menu labels in the doc may occasionally lag the UI).
 
 ## Requirements
 
-- WordPress 5.0+, PHP 7.4+, MySQL 5.7+
-- Stripe account with price IDs for paid events
-- **Upstash Redis** – REST URL and token ([Upstash](https://upstash.com)) for production session/token behavior
-- Streaming credentials for your chosen provider (**Mux** and/or **OME** as configured under **Vendors**)
-- Optional: **Ably** account for live chat
+| Item | Notes |
+|------|--------|
+| WordPress | 5.0+ |
+| PHP | 7.4+ (newer PHP recommended) |
+| MySQL / MariaDB | 5.7+ compatible |
+| Stripe | Account + Price IDs for paid events |
+| Upstash Redis | REST URL + token for production session / magic-link behavior |
+| Streaming | Credentials for **Mux** and/or **OME** per your active provider |
+| Optional | **Ably** for live chat |
 
-## Setup
+## Installation
 
-1. **Install and activate** the plugin.
-2. Open **Live Events → Settings** and configure **Upstash Redis** (required for full access flows), **Stripe**, optional **Ably**, and the **active streaming provider**.
-3. Open **Live Events → Vendors** and enter credentials for **Mux** and/or **OME** (the active provider in Settings determines which path events use by default).
-4. Create a **Live Event** (`lem_event`): attach stream/playback details, set free vs paid and Stripe price if needed, then publish.
-5. Test entitlement: free events can issue access immediately; paid events go through Stripe Checkout; on success the webhook emails a magic link.
+1. Copy the plugin folder into `wp-content/plugins/` (or install from a release ZIP).
+2. Activate **Live Event Manager** in **Plugins**.
+3. Configure **Live Events → Settings** (Upstash, Stripe, active provider, optional Ably).
+4. Configure **Live Events → Vendors** for Mux/OME as needed.
+5. Create **Live Event** posts (`lem_event`), set free vs paid and Stripe price where applicable.
 
-Operator documentation: **Live Events → User Guide** (see also `docs/user-guide.md`—some menu names there may lag the UI).
+## Development
 
-## Viewer Experience
+### Layout
 
-- **Ticket purchase** – Event blocks validate email, send viewers to Stripe when required, and show status inline.
-- **Watch shortcut** – The event page can call `lem_check_event_access` so entitled viewers see the player without a separate “watch” post in many setups.
-- **Player** – Valid JWTs load playback (Mux player or provider-appropriate embed). Failed entitlement hides the player and keeps resend options visible.
-- **Magic link email** – One-time URL, access code, and resend instructions where configured.
-- **Resend** – Confirmation, watch, and event surfaces use `lem_regenerate_jwt` / email validation flows.
-- **Chat** – If Ably is configured, viewers receive short-lived tokens for scoped chat channels on watch pages.
+| Path | Purpose |
+|------|---------|
+| `live-event-manager.php` | Bootstrap, main class, many hooks and AJAX handlers |
+| `includes/` | Core helpers (cache, access, devices, templates, …) |
+| `services/` | Magic links, streaming providers |
+| `templates/` | Admin and front-end PHP templates |
+| `template-packs/` | Bundled starter / premium-dark packs |
+| `vendor/` | Composer dependencies (**committed** so a git clone works without running Composer) |
 
-## Caching & Sessions
+### PHP dependencies
 
-- **Upstash** is the supported cache layer: HTTPS requests to your Redis-compatible Upstash database.
-- Configure **REST URL** and **REST token** under **Live Events → Settings**; use **Debug** to test the connection.
-- Without Upstash, cache operations are effectively no-ops and admin notices remind you to configure it; do not rely on magic links or multi-device session behavior until it is set up.
+```bash
+composer install
+```
 
-## REST & Edge Revocations
+`composer.json` declares **firebase/php-jwt** and **stripe/stripe-php**. After upgrading dependencies, run `composer update` locally and commit both `composer.lock` and `vendor/` if your workflow keeps vendors in git (as this repo does).
 
-- Namespace: `wp-json/lem/v1/…` (most routes require `manage_options` / authenticated admin).
-- **`check-jwt-status`** accepts a JWT and returns revocation/validity information for use in front-line infrastructure (e.g. workers) that already validate signatures.
+### Coding standards
 
-## Admin Screens (under Live Events)
+Match existing WordPress APIs in the codebase: nonces for AJAX, capability checks for admin actions, prepared SQL where used, and escaping on output.
 
-| Screen | Purpose |
-|--------|---------|
-| **Live Streams** | Create, list, and manage streams for the active provider. |
-| **Vendors** | Per-provider credentials and options (Mux, OME, etc.). |
-| **Access Tokens** | Inspect and revoke JWTs / sessions. |
-| **Revoke access** | Entitlement-level revocations (email + event) stored in the database and reflected in checks. |
-| **Payments** | Paid ticket / checkout records tied to issued access; filter by event; CSV export. |
-| **Settings** | Stripe, Upstash, Ably, active provider, webhooks, and global options. |
-| **Devices** | Device identification and related rules. |
-| **Templates** | Install and activate template packs; download bundled packs. |
-| **User Guide** | In-dashboard documentation. |
-| **Debug** | Health checks, webhook URLs, Redis/Upstash and vendor connectivity. |
+### Tests
 
-Mux **playback restriction** APIs are still available from the plugin where integrated (e.g. vendor/debug workflows); there is not a separate top-level “Playback Restrictions” menu item in current builds.
+Automated tests are not yet part of this repository. Contributions that add a minimal PHPUnit or WP-CLI test harness are welcome (see **Contributing**).
 
-## Support Checklist
+## Security
 
-1. Use **Live Events → Debug** to verify Stripe, Mux (or OME), and **Upstash** connectivity.
+If you believe you have found a security vulnerability, please **do not** open a public issue with exploit details. Open a **[GitHub Security Advisory](https://github.com/tbobkergeneral/wp-live-event-manager/security/advisories/new)** (preferred) or contact the maintainers privately so a fix can be coordinated.
+
+## Contributing
+
+1. Open an **issue** first for larger changes (architecture, new providers, breaking behavior) so maintainers can align on direction.
+2. Use **focused pull requests** with a clear description of user-visible behavior and any migration notes for site operators.
+3. For WordPress.org–style plugins, avoid committing secrets; use local `.env` or wp-config constants only on your machine (`.env` is gitignored).
+
+Bug reports and documentation improvements are always appreciated.
+
+## Support & troubleshooting
+
+1. **Live Events → Debug** — Stripe, Mux/OME, Upstash checks.
 2. Enable `WP_DEBUG_LOG` and watch for `[LEM]` lines in `wp-content/debug.log`.
-3. Check **Access Tokens** and **Revoke access** if a viewer should or should not have playback.
-4. Re-deliver or replay Stripe webhooks from the Stripe Dashboard if payments did not issue access.
+3. **Access Tokens** / **Revoke access** if playback should or should not be allowed.
+4. Replay Stripe webhooks from the Stripe Dashboard if payment succeeded but access was not issued.
+
+## REST API (short reference)
+
+- Base: `wp-json/lem/v1/…` (most routes expect an authenticated admin with appropriate capabilities).
+- `POST /lem/v1/check-jwt-status` — intended for edge revocation checks alongside signature validation.
 
 ---
 
-Built for production streaming workflows: WordPress front end, Stripe paywall, flexible streaming backends, and Redis-backed access control.
+**Disclaimer:** Third-party service names (Stripe, Mux, Upstash, Ably, OvenMediaEngine) are trademarks of their respective owners. This plugin is not affiliated with those vendors unless explicitly stated elsewhere by the project owners.
