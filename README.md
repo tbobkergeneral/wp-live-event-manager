@@ -35,7 +35,7 @@ The plugin combines Stripe for checkout, pluggable streaming backends (**Mux** o
 4. Create a **Live Event** (`lem_event`): attach stream/playback details, set free vs paid and Stripe price if needed, then publish.
 5. Test entitlement: free events can issue access immediately; paid events go through Stripe Checkout; on success the webhook emails a magic link.
 
-Operator documentation: **Live Events → User Guide** (see also `docs/user-guide.md`—some menu names there may lag the UI).
+Operator documentation: **Live Events → User Guide** (see also `[docs/user-guide.md](docs/user-guide.md)`—some menu names there may lag the UI).
 
 ## Viewer Experience
 
