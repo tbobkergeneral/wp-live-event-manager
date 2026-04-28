@@ -18,6 +18,9 @@
  *   lem_resolve_template_file — (string $absolute_path, string $filename)
  *   lem_installed_template_packs — (array $templates)
  *
+ * Actions:
+ *   lem_template_pack_source_error — (\Throwable $e, callable $callback) when a source callback throws
+ *
  * Usage (from anywhere in the plugin):
  *   LEM_Template_Manager::resolve_template_file('single-event.php')
  *   LEM_Template_Manager::get_installed_templates()
@@ -74,32 +77,67 @@ class LEM_Template_Manager {
 
     /**
      * Returns packs registered via register_pack_source(), keyed by slug (later sources overwrite).
+     * Callbacks are isolated: exceptions are caught so bad add-ons cannot break front-end resolution.
      *
      * @return array<string, array{path: string, meta: array}>
      */
     private static function collect_registered_packs(): array {
         $by_slug = array();
         foreach (self::$pack_sources as $cb) {
-            $items = call_user_func($cb);
-            if (!is_array($items)) {
+            try {
+                $items = call_user_func($cb);
+            } catch ( \Throwable $e ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log( sprintf( '[LEM] template pack source error: %s', $e->getMessage() ) );
+                }
+                do_action( 'lem_template_pack_source_error', $e, $cb );
                 continue;
             }
-            foreach ($items as $item) {
-                if (empty($item['slug']) || empty($item['path'])) {
+            if ( ! is_array( $items ) ) {
+                continue;
+            }
+            foreach ( $items as $item ) {
+                $row = self::filter_valid_registered_pack_item( $item );
+                if ( $row === null ) {
                     continue;
                 }
-                $slug = sanitize_key($item['slug']);
-                $path = wp_normalize_path(trailingslashit($item['path']));
-                if (!is_dir($path) || !file_exists($path . 'template.json')) {
-                    continue;
-                }
-                $by_slug[ $slug ] = array(
-                    'path' => $path,
-                    'meta' => $item,
+                $by_slug[ $row['slug'] ] = array(
+                    'path' => $row['path'],
+                    'meta' => $row['meta'],
                 );
             }
         }
         return $by_slug;
+    }
+
+    /**
+     * @param mixed $item Entry returned by a pack source callback.
+     * @return null|array{slug: string, path: string, meta: array}
+     */
+    private static function filter_valid_registered_pack_item( $item ) {
+        if ( ! is_array( $item ) ) {
+            return null;
+        }
+        if ( empty( $item['slug'] ) || ! is_string( $item['slug'] ) || empty( $item['path'] ) || ! is_string( $item['path'] ) ) {
+            return null;
+        }
+        $slug = sanitize_key( $item['slug'] );
+        if ( $slug === '' || $slug === self::DEFAULT_SLUG ) {
+            return null;
+        }
+        if ( ! empty( $item['url'] ) && ! is_string( $item['url'] ) ) {
+            return null;
+        }
+        $path = wp_normalize_path( trailingslashit( $item['path'] ) );
+        if ( $path === '' || ! is_dir( $path ) || ! file_exists( $path . 'template.json' ) ) {
+            return null;
+        }
+        return array(
+            'slug' => $slug,
+            'path' => $path,
+            'meta' => $item,
+        );
     }
 
     /**
