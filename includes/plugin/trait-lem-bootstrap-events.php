@@ -968,7 +968,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         
         // Check if this is a confirmation page request
         if (isset($wp_query->query_vars['lem_confirmation']) && $wp_query->query_vars['lem_confirmation'] == '1') {
-            $confirmation_template = LEM_PLUGIN_DIR . 'templates/confirmation-page.php';
+            $confirmation_template = LEM_Template_Manager::resolve_template_file('confirmation-page.php');
             
             if (file_exists($confirmation_template)) {
                 $this->debug_log('Loading confirmation template via rewrite rule');
@@ -978,7 +978,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         
         // Fallback: Check if the current page is /confirmation (for when rewrite rules don't work)
         if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/confirmation') === 0) {
-            $confirmation_template = LEM_PLUGIN_DIR . 'templates/confirmation-page.php';
+            $confirmation_template = LEM_Template_Manager::resolve_template_file('confirmation-page.php');
             
             if (file_exists($confirmation_template)) {
                 $this->debug_log('Loading confirmation template via fallback method', array('uri' => $_SERVER['REQUEST_URI']));
@@ -988,7 +988,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         
         // Additional fallback: Check if this is a 404 and the URL contains confirmation
         if (is_404() && isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/confirmation') === 0) {
-            $confirmation_template = LEM_PLUGIN_DIR . 'templates/confirmation-page.php';
+            $confirmation_template = LEM_Template_Manager::resolve_template_file('confirmation-page.php');
             
             if (file_exists($confirmation_template)) {
                 $this->debug_log('Loading confirmation template via 404 fallback', array('uri' => $_SERVER['REQUEST_URI']));
@@ -998,7 +998,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         
         // Fallback for direct GET parameters
         if (isset($_GET['session_id']) || (isset($_GET['lem_success']) && $_GET['lem_success'] == '1')) {
-            $confirmation_template = LEM_PLUGIN_DIR . 'templates/confirmation-page.php';
+            $confirmation_template = LEM_Template_Manager::resolve_template_file('confirmation-page.php');
             
             if (file_exists($confirmation_template)) {
                 $this->debug_log('Loading confirmation template via GET parameters');
@@ -1052,7 +1052,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         
         // Load device swap template
         if (get_query_var('lem_device_swap')) {
-            $device_swap_template = LEM_PLUGIN_DIR . 'templates/device-swap-form.php';
+            $device_swap_template = LEM_Template_Manager::resolve_template_file('device-swap-form.php');
             
             if (file_exists($device_swap_template)) {
                 return $device_swap_template;
@@ -1077,7 +1077,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         
         // Fallback: Check if the current page is /device-swap
         if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/device-swap') === 0) {
-            $device_swap_template = LEM_PLUGIN_DIR . 'templates/device-swap-form.php';
+            $device_swap_template = LEM_Template_Manager::resolve_template_file('device-swap-form.php');
             
             if (file_exists($device_swap_template)) {
                 return $device_swap_template;
@@ -1674,7 +1674,7 @@ trait LEM_Trait_Bootstrap_And_Events {
         $live_event_manager = $this;
         
         ob_start();
-        include LEM_PLUGIN_DIR . 'templates/gated-video-block.php';
+        include LEM_Template_Manager::resolve_template_file('gated-video-block.php');
         return ob_get_clean();
     }
     
