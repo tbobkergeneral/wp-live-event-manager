@@ -2,8 +2,9 @@
   "name":        "Starter Template",
   "slug":        "starter",
   "version":     "1.0.0",
-  "description": "A minimal, fully-annotated starting point for building custom LEM templates. Copy and rename this folder to begin.",
+  "description": "A minimal, fully-annotated starting point for building custom LEM templates. Copy and rename this folder to begin. Optional key \"files\": array of extra relative paths allowed in your ZIP beyond the built-in list (see includes/class-lem-template-manager.php).",
   "author":      "LEM",
   "author_url":  "https://simulcast.stream",
-  "type":        ["event_page", "paywall"]
+  "type":        ["event_page", "paywall"],
+  "files": []
 }

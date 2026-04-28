@@ -1697,7 +1697,7 @@ trait LEM_Trait_Rest_And_Webhooks {
             $this->debug_log('Confirmation redirect handler triggered', array('uri' => $_SERVER['REQUEST_URI']));
             
             // Load the confirmation template directly
-            $confirmation_template = LEM_PLUGIN_DIR . 'templates/confirmation-page.php';
+            $confirmation_template = LEM_Template_Manager::resolve_template_file('confirmation-page.php');
             if (file_exists($confirmation_template)) {
                 // Set status to 200 to prevent 404
                 status_header(200);

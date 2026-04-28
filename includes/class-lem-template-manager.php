@@ -6,11 +6,28 @@
  * resolution. Template packs are stored in wp-content/lem-templates/{slug}/
  * so they survive plugin updates.
  *
+ * template.json may include an optional "files" array: relative paths (under the
+ * pack root) that are allowed in addition to the default install set when unpacking
+ * a ZIP. Each path must match /^[a-zA-Z0-9][a-zA-Z0-9_.\/-]*$/ with no "..".
+ *
+ * Add-on plugins can call register_pack_source() on plugins_loaded to expose packs
+ * that live inside their plugin directory (returns manifest-shaped arrays with
+ * required keys: slug, name, version, path; optional: url for asset base URL).
+ *
+ * Filters:
+ *   lem_resolve_template_file — (string $absolute_path, string $filename)
+ *   lem_installed_template_packs — (array $templates)
+ *
+ * Actions:
+ *   lem_template_pack_source_error — (\Throwable $e, callable $callback) when a source callback throws
+ *
  * Usage (from anywhere in the plugin):
  *   LEM_Template_Manager::resolve_template_file('single-event.php')
  *   LEM_Template_Manager::get_installed_templates()
  */
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class LEM_Template_Manager {
 
@@ -25,11 +42,126 @@ class LEM_Template_Manager {
     const MAX_ZIP_SIZE = 5242880;
 
     /**
+     * Default template PHP/CSS/JS paths allowed in every pack ZIP (union with template.json "files").
+     *
+     * @var string[]
+     */
+    private static $default_pack_file_relatives = array(
+        'template.json',
+        'single-event.php',
+        'event-ticket-block.php',
+        'page-events.php',
+        'confirmation-page.php',
+        'device-swap-form.php',
+        'gated-video-block.php',
+        'assets/style.css',
+        'assets/script.js',
+    );
+
+    /**
+     * @var callable[]
+     */
+    private static $pack_sources = array();
+
+    /**
+     * Register a callback that returns template pack definitions shipped by another plugin.
+     *
+     * Each item must include: slug, name, version, path (absolute directory containing template.json).
+     * Optional: description, author, author_url, type, url (public base URL for assets if path is not under wp-content).
+     *
+     * @param callable():array $callback Returns a list of pack manifest arrays.
+     */
+    public static function register_pack_source(callable $callback): void {
+        self::$pack_sources[] = $callback;
+    }
+
+    /**
+     * Returns packs registered via register_pack_source(), keyed by slug (later sources overwrite).
+     * Callbacks are isolated: exceptions are caught so bad add-ons cannot break front-end resolution.
+     *
+     * @return array<string, array{path: string, meta: array}>
+     */
+    private static function collect_registered_packs(): array {
+        $by_slug = array();
+        foreach (self::$pack_sources as $cb) {
+            try {
+                $items = call_user_func($cb);
+            } catch ( \Throwable $e ) {
+                if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+                    error_log( sprintf( '[LEM] template pack source error: %s', $e->getMessage() ) );
+                }
+                do_action( 'lem_template_pack_source_error', $e, $cb );
+                continue;
+            }
+            if ( ! is_array( $items ) ) {
+                continue;
+            }
+            foreach ( $items as $item ) {
+                $row = self::filter_valid_registered_pack_item( $item );
+                if ( $row === null ) {
+                    continue;
+                }
+                $by_slug[ $row['slug'] ] = array(
+                    'path' => $row['path'],
+                    'meta' => $row['meta'],
+                );
+            }
+        }
+        return $by_slug;
+    }
+
+    /**
+     * @param mixed $item Entry returned by a pack source callback.
+     * @return null|array{slug: string, path: string, meta: array}
+     */
+    private static function filter_valid_registered_pack_item( $item ) {
+        if ( ! is_array( $item ) ) {
+            return null;
+        }
+        if ( empty( $item['slug'] ) || ! is_string( $item['slug'] ) || empty( $item['path'] ) || ! is_string( $item['path'] ) ) {
+            return null;
+        }
+        $slug = sanitize_key( $item['slug'] );
+        if ( $slug === '' || $slug === self::DEFAULT_SLUG ) {
+            return null;
+        }
+        if ( ! empty( $item['url'] ) && ! is_string( $item['url'] ) ) {
+            return null;
+        }
+        $path = wp_normalize_path( trailingslashit( $item['path'] ) );
+        if ( $path === '' || ! is_dir( $path ) || ! file_exists( $path . 'template.json' ) ) {
+            return null;
+        }
+        return array(
+            'slug' => $slug,
+            'path' => $path,
+            'meta' => $item,
+        );
+    }
+
+    /**
+     * Whether the slug exists as a user-installed directory, bundled pack, or registered source pack.
+     */
+    public static function is_pack_available(string $slug): bool {
+        $slug = sanitize_key($slug);
+        if ($slug === self::DEFAULT_SLUG) {
+            return true;
+        }
+        $dir = self::get_template_dir($slug);
+        if (is_dir($dir) && file_exists($dir . 'template.json')) {
+            return true;
+        }
+        $reg = self::collect_registered_packs();
+        return isset($reg[ $slug ]);
+    }
+
+    /**
      * Returns the slug of the currently active template pack.
      * Falls back to 'default' if nothing is set.
      */
     public static function get_active_slug(): string {
-        $settings = get_option('lem_settings', []);
+        $settings = get_option('lem_settings', array());
         $slug     = sanitize_key($settings['active_event_template'] ?? '');
         return ($slug !== '') ? $slug : self::DEFAULT_SLUG;
     }
@@ -62,35 +194,43 @@ class LEM_Template_Manager {
      * plugin's built-in template. This means a pack only needs to ship the
      * files it actually overrides.
      *
+     * Order for non-default packs: wp-content install > registered pack > bundled template-packs > core templates.
+     *
      * @param  string $filename  e.g. 'single-event.php' or 'event-ticket-block.php'
      * @return string            Absolute path to the template file to load
      */
     public static function resolve_template_file(string $filename): string {
-        $slug = self::get_active_slug();
+        $filename = ltrim(str_replace('\\', '/', $filename), '/');
+        $slug     = self::get_active_slug();
+
+        $fallback = LEM_PLUGIN_DIR . 'templates/' . $filename;
 
         if ($slug !== self::DEFAULT_SLUG) {
-            // 1. User-installed copy in wp-content/lem-templates/{slug}/
             $installed_path = self::get_template_dir($slug) . $filename;
             if (file_exists($installed_path)) {
-                return $installed_path;
+                return (string) apply_filters('lem_resolve_template_file', $installed_path, $filename);
             }
 
-            // 2. Bundled copy shipped with the plugin in template-packs/{slug}/
-            //    This covers files added to a pack after the user already installed it,
-            //    so they don't need to re-download and re-upload the ZIP.
+            $registered = self::collect_registered_packs();
+            if (!empty($registered[ $slug ]['path'])) {
+                $reg_path = $registered[ $slug ]['path'] . $filename;
+                if (file_exists($reg_path)) {
+                    return (string) apply_filters('lem_resolve_template_file', $reg_path, $filename);
+                }
+            }
+
             $bundled_path = LEM_PLUGIN_DIR . 'template-packs/'
-                          . sanitize_file_name($slug) . '/' . $filename;
+                . sanitize_file_name($slug) . '/' . $filename;
             if (file_exists($bundled_path)) {
-                return $bundled_path;
+                return (string) apply_filters('lem_resolve_template_file', $bundled_path, $filename);
             }
         }
 
-        // 3. Plugin built-in default template
-        return LEM_PLUGIN_DIR . 'templates/' . $filename;
+        return (string) apply_filters('lem_resolve_template_file', $fallback, $filename);
     }
 
     /**
-     * Returns the URL for a custom template asset (style.css or script.js).
+     * Returns the URL for a custom template asset (e.g. assets/style.css).
      * Returns an empty string if the active template is default, or the asset
      * file doesn't exist in the active pack.
      *
@@ -98,23 +238,48 @@ class LEM_Template_Manager {
      * @return string         URL or empty string
      */
     public static function get_active_asset_url(string $asset): string {
-        $slug = self::get_active_slug();
+        $asset = ltrim(str_replace('\\', '/', $asset), '/');
+        $slug  = self::get_active_slug();
         if ($slug === self::DEFAULT_SLUG) {
             return '';
         }
 
-        // 1. User-installed copy
         $installed_dir = self::TEMPLATES_BASE_DIR . trailingslashit(sanitize_file_name($slug));
         if (file_exists($installed_dir . $asset)) {
             return self::TEMPLATES_BASE_URL . trailingslashit(sanitize_file_name($slug)) . $asset;
         }
 
-        // 2. Bundled copy shipped with the plugin
+        $registered = self::collect_registered_packs();
+        if (!empty($registered[ $slug ]['path']) && file_exists($registered[ $slug ]['path'] . $asset)) {
+            $meta = $registered[ $slug ]['meta'];
+            if (!empty($meta['url'])) {
+                return trailingslashit($meta['url']) . $asset;
+            }
+            $pack_path = $registered[ $slug ]['path'];
+            $public    = self::guess_public_base_url_for_path($pack_path);
+            if ($public !== '') {
+                return trailingslashit($public) . $asset;
+            }
+        }
+
         $bundled_dir = LEM_PLUGIN_DIR . 'template-packs/' . sanitize_file_name($slug) . '/';
         if (file_exists($bundled_dir . $asset)) {
             return LEM_PLUGIN_URL . 'template-packs/' . sanitize_file_name($slug) . '/' . $asset;
         }
 
+        return '';
+    }
+
+    /**
+     * Best-effort URL for a directory under wp-content; empty if unknown.
+     */
+    private static function guess_public_base_url_for_path(string $absolute_dir): string {
+        $absolute_dir = trailingslashit(wp_normalize_path($absolute_dir));
+        $content      = trailingslashit(wp_normalize_path(WP_CONTENT_DIR));
+        if (strpos($absolute_dir, $content) === 0) {
+            $rel = ltrim(substr($absolute_dir, strlen($content)), '/');
+            return trailingslashit(content_url($rel));
+        }
         return '';
     }
 
@@ -125,40 +290,56 @@ class LEM_Template_Manager {
      * @return array[]  Each item: ['slug', 'name', 'version', 'description', 'author', 'author_url', 'type', 'built_in']
      */
     public static function get_installed_templates(): array {
-        $templates = [
-            [
+        $templates = array(
+            array(
                 'slug'        => self::DEFAULT_SLUG,
                 'name'        => 'Default',
                 'description' => 'Built-in plugin template.',
                 'author'      => 'LEM',
                 'author_url'  => '',
                 'version'     => LEM_VERSION,
-                'type'        => ['event_page', 'paywall'],
+                'type'        => array( 'event_page', 'paywall' ),
                 'built_in'    => true,
-            ],
-        ];
+            ),
+        );
+
+        $seen = array( self::DEFAULT_SLUG => true );
 
         $base = self::TEMPLATES_BASE_DIR;
-        if (!is_dir($base)) {
-            return $templates;
+        if (is_dir($base)) {
+            foreach ((array) glob($base . '*', GLOB_ONLYDIR) as $dir) {
+                $json_path = trailingslashit($dir) . 'template.json';
+                if (!file_exists($json_path)) {
+                    continue;
+                }
+                $raw  = file_get_contents($json_path);
+                $meta = json_decode($raw, true);
+                if (!is_array($meta) || empty($meta['slug']) || empty($meta['name'])) {
+                    continue;
+                }
+                $meta['slug']     = sanitize_key($meta['slug']);
+                $meta['built_in'] = false;
+                $templates[]      = $meta;
+                $seen[ $meta['slug'] ] = true;
+            }
         }
 
-        foreach ((array) glob($base . '*', GLOB_ONLYDIR) as $dir) {
-            $json_path = trailingslashit($dir) . 'template.json';
-            if (!file_exists($json_path)) {
+        foreach (self::collect_registered_packs() as $slug => $info) {
+            if (!empty($seen[ $slug ])) {
                 continue;
             }
-            $raw  = file_get_contents($json_path);
-            $meta = json_decode($raw, true);
-            if (!is_array($meta) || empty($meta['slug']) || empty($meta['name'])) {
+            $m = $info['meta'];
+            if (!is_array($m)) {
                 continue;
             }
-            $meta['slug']     = sanitize_key($meta['slug']);
-            $meta['built_in'] = false;
-            $templates[]      = $meta;
+            $m['slug']                = $slug;
+            $m['built_in']            = false;
+            $m['register_source']     = true;
+            $templates[]              = $m;
+            $seen[ $slug ]            = true;
         }
 
-        return $templates;
+        return apply_filters('lem_installed_template_packs', $templates);
     }
 
     /**
@@ -171,15 +352,12 @@ class LEM_Template_Manager {
     public static function activate_template(string $slug) {
         $slug = sanitize_key($slug);
 
-        if ($slug !== self::DEFAULT_SLUG) {
-            $dir = self::get_template_dir($slug);
-            if (!is_dir($dir) || !file_exists($dir . 'template.json')) {
-                return new WP_Error('not_found', 'Template pack not found.');
-            }
+        if ($slug !== self::DEFAULT_SLUG && !self::is_pack_available($slug)) {
+            return new WP_Error('not_found', 'Template pack not found.');
         }
 
-        $settings = get_option('lem_settings', []);
-        $settings['active_event_template'] = $slug;
+        $settings                                = get_option('lem_settings', array());
+        $settings['active_event_template']       = $slug;
         update_option('lem_settings', $settings);
         return true;
     }
@@ -199,10 +377,13 @@ class LEM_Template_Manager {
             return new WP_Error('protected', 'The built-in default template cannot be deleted.');
         }
 
+        $reg = self::collect_registered_packs();
+        if (!empty($reg[ $slug ]) && !is_dir(self::get_template_dir($slug))) {
+            return new WP_Error('protected', 'This template is supplied by another plugin and cannot be deleted here.');
+        }
+
         $dir = self::get_template_dir($slug);
 
-        // Confirm the path is genuinely inside TEMPLATES_BASE_DIR (guard against
-        // slugs that might escape the base directory via sanitise_file_name edge cases).
         $real_base = realpath(self::TEMPLATES_BASE_DIR);
         $real_dir  = realpath($dir);
         if ($real_base === false || $real_dir === false || strpos($real_dir, $real_base) !== 0) {
@@ -213,7 +394,6 @@ class LEM_Template_Manager {
             return new WP_Error('not_found', 'Template pack not found.');
         }
 
-        // Revert to default before deleting if this pack is active.
         if (self::get_active_slug() === $slug) {
             self::activate_template(self::DEFAULT_SLUG);
         }
@@ -231,7 +411,7 @@ class LEM_Template_Manager {
      * Security enforced:
      *  - 5 MB size cap
      *  - Path traversal check on every ZIP entry
-     *  - Explicit whitelist of allowed filenames
+     *  - Allowlist built from default files + template.json "files" array
      *  - slug must match the top-level folder name
      *  - 'default' slug rejected
      *
@@ -255,18 +435,15 @@ class LEM_Template_Manager {
             return new WP_Error('bad_zip', 'Could not open the ZIP file (error code: ' . $res . ').');
         }
 
-        // ── Discover the top-level folder name ────────────────────────────────────
         $folder_name = '';
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = $zip->getNameIndex($i);
 
-            // Guard against path traversal
             if (strpos($name, '..') !== false || strpos($name, './') !== false) {
                 $zip->close();
                 return new WP_Error('path_traversal', 'The ZIP contains unsafe file paths.');
             }
 
-            // First path component = top-level folder
             if ($folder_name === '') {
                 $parts = explode('/', $name, 2);
                 if (!empty($parts[0])) {
@@ -285,7 +462,6 @@ class LEM_Template_Manager {
             return new WP_Error('reserved_slug', '"default" is a reserved slug and cannot be used for a template pack.');
         }
 
-        // ── Validate template.json ──────────────────────────────────────────────
         $json_content = $zip->getFromName($folder_name . '/template.json');
         if ($json_content === false) {
             $zip->close();
@@ -293,8 +469,8 @@ class LEM_Template_Manager {
         }
 
         $meta = json_decode($json_content, true);
-        foreach (['name', 'slug', 'version'] as $required_key) {
-            if (empty($meta[$required_key])) {
+        foreach (array( 'name', 'slug', 'version' ) as $required_key) {
+            if (empty($meta[ $required_key ])) {
                 $zip->close();
                 return new WP_Error('invalid_manifest', 'template.json is missing the required "' . $required_key . '" field.');
             }
@@ -305,41 +481,27 @@ class LEM_Template_Manager {
             return new WP_Error('slug_mismatch', 'The "slug" in template.json must match the ZIP\'s top-level folder name.');
         }
 
-        // ── Allowed relative paths inside the pack ─────────────────────────────
-        $allowed = [
-            $folder_name . '/template.json',
-            $folder_name . '/single-event.php',
-            $folder_name . '/event-ticket-block.php',
-            $folder_name . '/page-events.php',
-            $folder_name . '/assets/style.css',
-            $folder_name . '/assets/script.js',
-            $folder_name . '/',
-            $folder_name . '/assets/',
-        ];
+        $allowed = self::build_zip_allowlist($folder_name, is_array($meta) ? $meta : array());
 
-        // ── Create destination directories ────────────────────────────────────
-        $dest_dir   = self::TEMPLATES_BASE_DIR . $candidate_slug . '/';
-        $assets_dir = $dest_dir . 'assets/';
+        $dest_dir = self::TEMPLATES_BASE_DIR . $candidate_slug . '/';
         wp_mkdir_p($dest_dir);
-        wp_mkdir_p($assets_dir);
 
-        // ── Extract whitelisted files ─────────────────────────────────────────
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $entry = $zip->getNameIndex($i);
 
             if (!in_array($entry, $allowed, true)) {
-                continue; // Silently skip anything not on the whitelist
+                continue;
             }
             if (substr($entry, -1) === '/') {
-                continue; // Skip directory entries — already created above
+                continue;
             }
 
             $relative = substr($entry, strlen($folder_name) + 1);
             $out_path = $dest_dir . $relative;
 
-            // Final safety: ensure resolved output path is inside $dest_dir
             $real_dest = realpath($dest_dir);
-            $out_real  = realpath(dirname($out_path));
+            wp_mkdir_p(dirname($out_path));
+            $out_real = realpath(dirname($out_path));
             if ($real_dest !== false && $out_real !== false && strpos($out_real, $real_dest) !== 0) {
                 $zip->close();
                 return new WP_Error('path_traversal', 'Extraction path escapes the template directory.');
@@ -350,10 +512,54 @@ class LEM_Template_Manager {
 
         $zip->close();
 
-        return $meta; // Success — return parsed metadata to caller
+        return $meta;
     }
 
-    // ── Private helpers ────────────────────────────────────────────────────────
+    /**
+     * Build exact ZIP entry paths allowed for extraction.
+     *
+     * @param string               $folder_name Top-level folder name in the archive.
+     * @param array<string, mixed> $meta        Parsed template.json.
+     * @return string[]
+     */
+    private static function build_zip_allowlist(string $folder_name, array $meta): array {
+        $allowed = array();
+
+        foreach (self::$default_pack_file_relatives as $rel) {
+            $allowed[] = $folder_name . '/' . $rel;
+        }
+
+        if (!empty($meta['files']) && is_array($meta['files'])) {
+            foreach ($meta['files'] as $extra) {
+                $clean = self::sanitize_pack_relative_path((string) $extra);
+                if ($clean === '') {
+                    continue;
+                }
+                $allowed[] = $folder_name . '/' . $clean;
+            }
+        }
+
+        $allowed[] = $folder_name . '/';
+        $allowed[] = $folder_name . '/assets/';
+
+        $allowed = array_unique($allowed);
+        return array_values($allowed);
+    }
+
+    /**
+     * Sanitize a relative path inside a template pack (no leading slash, no "..").
+     */
+    private static function sanitize_pack_relative_path(string $rel): string {
+        $rel = str_replace('\\', '/', $rel);
+        $rel = ltrim($rel, '/');
+        if ($rel === '' || strpos($rel, '..') !== false) {
+            return '';
+        }
+        if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_.\/-]*$/', $rel)) {
+            return '';
+        }
+        return $rel;
+    }
 
     /**
      * Recursively removes a directory and all its contents.

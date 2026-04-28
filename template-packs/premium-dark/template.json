@@ -5,5 +5,6 @@
   "description": "A cinematic full-screen streaming experience. Deep dark backgrounds, indigo-to-violet accents, and frosted glass details.",
   "author":      "simulcast.stream",
   "author_url":  "https://simulcast.stream",
-  "type":        ["event_page", "paywall"]
+  "type":        ["event_page", "paywall"],
+  "files": []
 }
